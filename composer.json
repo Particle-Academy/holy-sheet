@@ -1,0 +1,71 @@
+{
+    "name": "particle-academy/holy-sheet",
+    "description": "Standalone spreadsheet writing tool for agentic document creation. Framework-agnostic core with optional Laravel 10-13 integration.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "spreadsheet",
+        "xlsx",
+        "csv",
+        "excel",
+        "agentic",
+        "ai",
+        "document-creation",
+        "particle-academy"
+    ],
+    "homepage": "https://github.com/Particle-Academy/holy-sheet",
+    "support": {
+        "issues": "https://github.com/Particle-Academy/holy-sheet/issues",
+        "source": "https://github.com/Particle-Academy/holy-sheet"
+    },
+    "authors": [
+        {
+            "name": "Particle Academy",
+            "homepage": "https://github.com/Particle-Academy"
+        }
+    ],
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "pestphp/pest": "^3.0|^4.0",
+        "phpunit/phpunit": "^10.0|^11.0|^12.0",
+        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
+        "illuminate/support": "^10.0|^11.0|^12.0|^13.0"
+    },
+    "suggest": {
+        "illuminate/support": "Required only when using the Laravel service provider. Compatible with 10.x through 13.x.",
+        "ext-zip": "Required for native xlsx writing (avoids third-party deps)."
+    },
+    "autoload": {
+        "psr-4": {
+            "HolySheet\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "HolySheet\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "test-coverage": "pest --coverage"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "HolySheet\\Laravel\\HolySheetServiceProvider"
+            ],
+            "aliases": {
+                "HolySheet": "HolySheet\\Laravel\\Facades\\HolySheet"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}

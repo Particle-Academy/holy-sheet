@@ -17,11 +17,25 @@ namespace HolySheet;
  */
 final class HolySheet
 {
-    public const VERSION = '0.1.0-dev';
+    public const VERSION = '0.2.0-dev';
 
     /** Package version (stable when tagged). */
     public static function version(): string
     {
         return self::VERSION;
+    }
+
+    /**
+     * Convenience facade over `Agent::write()` for the most common case:
+     * one-call writing of a schema to a file path.
+     *
+     *   HolySheet::write('/tmp/q4.xlsx', ['sheets' => [['name' => 'Q4', ...]]]);
+     *
+     * @param  array<string,mixed>  $schema
+     * @return array{path:string,bytes:int,sheets:int}
+     */
+    public static function write(string $path, array $schema): array
+    {
+        return Agent::write($schema, $path);
     }
 }

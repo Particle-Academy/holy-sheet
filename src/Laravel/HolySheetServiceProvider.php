@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace HolySheet\Laravel;
 
 use HolySheet\HolySheet;
+use HolySheet\Laravel\Commands\WriteCommand;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 
@@ -36,6 +37,10 @@ final class HolySheetServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../../config/holy-sheet.php' => $this->app->configPath('holy-sheet.php'),
             ], 'holy-sheet-config');
+
+            $this->commands([
+                WriteCommand::class,
+            ]);
         }
     }
 }

@@ -6,17 +6,13 @@ namespace HolySheet\Workbook;
 
 /**
  * A worksheet inside a Workbook.
- *
- * Cells are stored as a sparse map keyed by A1 address, matching
- * fancy-sheets' data model and Excel's worksheet layout. The writer
- * walks cells in row-then-column order (driven by the rows() helper).
  */
 final class Sheet
 {
     /**
      * @param  array<string,Cell>  $cells  A1-keyed sparse map
-     * @param  list<array{start:string,end:string}>  $mergedRegions
-     * @param  array<int,float>  $columnWidths
+     * @param  list<MergedRegion>  $mergedRegions
+     * @param  array<int,float>  $columnWidths  0-based col index → pixels
      */
     public function __construct(
         public readonly string $name,
@@ -27,22 +23,36 @@ final class Sheet
         public readonly int $frozenCols = 0,
     ) {}
 
-    /**
-     * Group cells by row index for sequential xlsx writing.
-     *
-     * @return array<int,array<string,Cell>>  rowIndex => [colLetter => Cell]
-     */
+    /** @return array<int,array<string,Cell>>  rowIndex => [colLetter => Cell] */
     public function rows(): array
     {
         $rows = [];
         foreach ($this->cells as $address => $cell) {
             preg_match('/^([A-Z]+)(\d+)$/', $address, $m);
-            if (!$m) {
-                continue; // Validator should have caught this, but fail closed.
-            }
+            if (!$m) continue;
             $rows[(int) $m[2]][$m[1]] = $cell;
         }
         ksort($rows);
         return $rows;
+    }
+
+    public function hasComments(): bool
+    {
+        foreach ($this->cells as $cell) {
+            if ($cell->comment !== null) return true;
+        }
+        return false;
+    }
+
+    /** @return list<array{address:string,comment:CellComment}> */
+    public function comments(): array
+    {
+        $out = [];
+        foreach ($this->cells as $cell) {
+            if ($cell->comment !== null) {
+                $out[] = ['address' => $cell->address, 'comment' => $cell->comment];
+            }
+        }
+        return $out;
     }
 }

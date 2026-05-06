@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace HolySheet\Workbook;
 
 /**
- * A single cell in a sheet. Format/comment land in 0.3+/0.6.
+ * A single cell in a sheet.
+ *
+ * Holds intent — value, optional formula, optional CellFormat, optional
+ * CellComment, optional cached formula value. The writer's StylesRegistry
+ * resolves formats to xf indexes during serialization.
  */
 final class Cell
 {
@@ -13,27 +17,26 @@ final class Cell
         public readonly string $address,
         public readonly string|int|float|bool|null $value,
         public readonly ?string $formula = null,
+        public readonly ?CellFormat $format = null,
+        public readonly ?CellComment $comment = null,
+        public readonly string|int|float|bool|null $cachedValue = null,
     ) {}
 
-    /**
-     * Excel cell type code: `s` (shared string), `inlineStr` (inline),
-     * `n` (numeric, default), `b` (boolean), `e` (error), `str` (formula
-     * string result).
-     *
-     * v0.2 uses inline strings for all string values — sharedStrings.xml
-     * arrives in 0.7 once text-heavy sheets matter.
-     */
     public function excelType(): string
     {
-        if ($this->formula !== null) {
-            return 'str';
-        }
-        if (is_string($this->value)) {
-            return 'inlineStr';
-        }
-        if (is_bool($this->value)) {
-            return 'b';
-        }
+        if ($this->formula !== null) return 'str';
+        if (is_string($this->value)) return 'inlineStr';
+        if (is_bool($this->value)) return 'b';
         return 'n';
+    }
+
+    public function withFormat(?CellFormat $format): self
+    {
+        return new self($this->address, $this->value, $this->formula, $format, $this->comment, $this->cachedValue);
+    }
+
+    public function withValue(string|int|float|bool|null $value): self
+    {
+        return new self($this->address, $value, $this->formula, $this->format, $this->comment, $this->cachedValue);
     }
 }

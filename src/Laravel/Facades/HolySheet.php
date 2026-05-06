@@ -8,7 +8,26 @@ use HolySheet\HolySheet as HolySheetCore;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static string version()
+ * Holy Sheet facade — the full xlsx writing surface for Laravel apps.
+ *
+ *   use HolySheet\Laravel\Facades\HolySheet;
+ *
+ *   HolySheet::write($schema, '/tmp/q4.xlsx');           // write to disk
+ *   $bytes = HolySheet::toBytes($schema);                // get raw xlsx bytes
+ *   $errors = HolySheet::validate($schema);              // dry-run, returns error list
+ *   $jsonSchema = HolySheet::toolDefinition();           // for agent tool-use wiring
+ *   $version = HolySheet::getVersion();                  // package version
+ *
+ * Pipeline-friendly: every method is exposed, all return values are
+ * arrays / strings (no special objects to import), and validation
+ * surfaces structured errors via SchemaException for graceful recovery.
+ *
+ * @method static list<array{path:string,expected:string,got:string,value:mixed,hint:string}> validate(array $schema)
+ * @method static array{path:string,bytes:int,sheets:int} write(array $schema, string $path)
+ * @method static string toBytes(array $schema)
+ * @method static array<string,mixed> toolDefinition()
+ * @method static array<string,mixed> describe(string $path)
+ * @method static string getVersion()
  *
  * @see \HolySheet\HolySheet
  */

@@ -25,17 +25,16 @@
         }
     ],
     "require": {
-        "php": "^8.2"
+        "php": "^8.2",
+        "ext-zip": "*"
     },
     "require-dev": {
         "pestphp/pest": "^3.0|^4.0",
         "phpunit/phpunit": "^10.0|^11.0|^12.0",
-        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
-        "illuminate/support": "^10.0|^11.0|^12.0|^13.0"
+        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0"
     },
     "suggest": {
-        "illuminate/support": "Required only when using the Laravel service provider. Compatible with 10.x through 13.x.",
-        "ext-zip": "Required for native xlsx writing (avoids third-party deps)."
+        "illuminate/support": "Only needed when using the optional Laravel service provider, facade, or artisan command. Compatible with 10.x through 13.x. The core HolySheet\\Agent + writer require zero framework."
     },
     "autoload": {
         "psr-4": {

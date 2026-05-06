@@ -94,9 +94,22 @@ it('the produced xlsx contains the five mandatory parts', function () {
     @unlink($tmp);
 });
 
-it('exposes HolySheet::write as a convenience facade', function () {
+it('exposes HolySheet::writeFile as the static convenience entry', function () {
     $tmp = tempnam(sys_get_temp_dir(), 'holy-sheet-test-').'.xlsx';
-    HolySheet::write($tmp, ['sheets' => [['name' => 'X', 'columns' => [['header' => 'A']], 'rows' => [[1]]]]]);
+    HolySheet::writeFile($tmp, ['sheets' => [['name' => 'X', 'columns' => [['header' => 'A']], 'rows' => [[1]]]]]);
     expect(file_exists($tmp))->toBeTrue();
+    @unlink($tmp);
+});
+
+it('the HolySheet singleton mirrors Agent for facade/DI use', function () {
+    $hs = new HolySheet();
+    $tmp = tempnam(sys_get_temp_dir(), 'holy-sheet-test-').'.xlsx';
+    $result = $hs->write(['sheets' => [['name' => 'X', 'columns' => [['header' => 'A']], 'rows' => [[1]]]]], $tmp);
+    expect($result['sheets'])->toBe(1);
+    expect($hs->validate(['sheets' => []]))->not->toBe([]);
+    expect(substr($hs->toBytes(['sheets' => [['name' => 'Y', 'columns' => [['header' => 'A']], 'rows' => [[1]]]]]), 0, 4))
+        ->toBe("PK\x03\x04");
+    expect($hs->toolDefinition())->toHaveKey('$schema');
+    expect($hs->getVersion())->toBeString();
     @unlink($tmp);
 });

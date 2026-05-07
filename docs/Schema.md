@@ -204,9 +204,52 @@ Every error has the same structured shape:
 
 Call `Agent::validate($schema)` for a dry-run that returns the error list without writing anything (empty list = valid).
 
+## Validate + repair
+
+`Agent::validateAndRepair($schema)` runs validation and applies conservative repairs in one call:
+
+```php
+$result = Agent::validateAndRepair($maybeBrokenSchema);
+// $result = ['schema' => array, 'errors' => list<error>, 'repairs' => list<string>]
+```
+
+Repair rules (high-confidence only — ambiguous cases are left as errors):
+
+| Rule | Trigger | Repair |
+|---|---|---|
+| Singular `sheet` | top-level `sheet` exists, `sheets` doesn't | Rename + wrap in array if needed |
+| `row` typo | sheet has `row` not `rows` | Rename |
+| Object-as-list | `rows` is `{0:…, 1:…}` | Convert to indexed list |
+| Stringified numerics | column type=number/integer/currency/percent, value is numeric string | Coerce to int/float |
+| Unknown theme | theme not in {default,business,minimal,plain} | Set to `'default'` |
+| Missing column type with date values | column type omitted, all values match ISO date regex | Infer `'date'` |
+| Whitespace in cell address | A1 keys with leading/trailing whitespace | Trim |
+
+What is **not** repaired (returns error without fix): missing `sheets`, missing sheet `name`, type mismatches outside the stringified-numeric case, anything with multiple plausible interpretations.
+
+## Schema builders
+
+Helpers that produce the schema shape from common inputs:
+
+```php
+// From rows + headers (or first row as headers)
+$schema = Agent::fromArray($rows, ['Region', 'Revenue']);
+
+// From CSV string or path
+$schema = Agent::fromCsv('/tmp/users.csv');
+$schema = Agent::fromCsv("name,age\nAlice,30\nBob,42");
+
+// From an Eloquent / Query / Collection — Laravel facade only
+$schema = HolySheet::fromQuery(User::query()->where('subscribed', true));
+$schema = HolySheet::fromQuery($builder, ['name' => 'User Name', 'mrr' => 'MRR']);
+```
+
+Type inference picks reasonable column types from header names + sample values: `revenue`/`amount`/`cost`/`price` → currency; `rate`/`percent`/`growth` (with values in [0,1]) → percent; `count`/`qty`/`id` → integer; ISO date strings → date/datetime; everything else → `auto`/`string`. For `fromQuery`, Eloquent `$casts` win when present (`decimal:2` → number with 2 decimals, `datetime` → datetime, etc.).
+
 ## See also
 
 - [Recipes](./Recipes.md) — concrete end-to-end patterns
+- [ReadPath](./ReadPath.md) — `Agent::describe()` contract + lossy-fields list
 - [LaravelAdapter](./LaravelAdapter.md) — facade, service provider, artisan command
 - [JSON Schema](../skills/holy-sheet.schema.json) — machine-readable spec
 - [SKILL](../skills/holy-sheet.md) — agent-facing prompt

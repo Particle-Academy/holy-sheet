@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace HolySheet;
 
+use HolySheet\Helpers\ArrayBuilder;
+use HolySheet\Helpers\CsvBuilder;
+use HolySheet\Reader\XlsxReader;
 use HolySheet\Schema\Normalizer;
+use HolySheet\Schema\Repairer;
 use HolySheet\Schema\Validator;
 use HolySheet\Writer\XlsxWriter;
 
@@ -88,17 +92,61 @@ final class Agent
 
     /**
      * Round-trip an existing xlsx file back to a Holy Sheet schema.
-     * Stubbed in 0.2 (returns ['error' => 'not yet implemented']) —
-     * lands in 0.9 alongside the formula+style readers.
+     * Lossy fields (themes, foreign custom number formats) are documented
+     * in docs/ReadPath.md; the returned schema is feed-it-back-to-write
+     * compatible.
      *
      * @return array<string,mixed>
      */
     public static function describe(string $path): array
     {
-        return [
-            'error' => 'not yet implemented',
-            'path' => $path,
-            'available_in' => '0.9',
-        ];
+        if (!is_file($path)) {
+            return ['error' => 'not_found', 'path' => $path];
+        }
+        return (new XlsxReader())->describe($path);
+    }
+
+    /**
+     * Validate a schema and attempt conservative repairs in one call.
+     * Returns the (possibly repaired) schema along with the original
+     * error list and a list of repairs applied.
+     *
+     * @param  array<string,mixed>  $schema
+     * @return array{schema:array<string,mixed>,errors:list<array<string,mixed>>,repairs:list<string>}
+     */
+    public static function validateAndRepair(array $schema): array
+    {
+        return (new Validator())->validateAndRepair($schema);
+    }
+
+    /**
+     * Build a schema from a flat array of rows. Optional headers; if
+     * omitted the first row is treated as headers. Type inference looks
+     * at column header names + sample values to pick reasonable types.
+     *
+     * @param  list<list<mixed>>  $rows
+     * @param  list<string>|null  $headers
+     * @param  array<string,mixed>  $options  passthrough: theme, currency, totals, frozenRows, frozenCols, sheetName
+     * @return array<string,mixed>
+     */
+    public static function fromArray(
+        array $rows,
+        ?array $headers = null,
+        string $sheetName = 'Sheet 1',
+        array $options = [],
+    ): array {
+        return ArrayBuilder::build($rows, $headers, $sheetName, $options);
+    }
+
+    /**
+     * Build a schema from a CSV string OR file path. First row is
+     * treated as headers. Type inference runs the same as fromArray.
+     *
+     * @param  array<string,mixed>  $options
+     * @return array<string,mixed>
+     */
+    public static function fromCsv(string $csvOrPath, array $options = []): array
+    {
+        return CsvBuilder::build($csvOrPath, $options);
     }
 }

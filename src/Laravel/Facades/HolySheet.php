@@ -27,6 +27,10 @@ use Illuminate\Support\Facades\Facade;
  * @method static string toBytes(array $schema)
  * @method static array<string,mixed> toolDefinition()
  * @method static array<string,mixed> describe(string $path)
+ * @method static array{schema:array<string,mixed>,errors:list<array<string,mixed>>,repairs:list<string>} validateAndRepair(array $schema)
+ * @method static array<string,mixed> fromArray(array $rows, ?array $headers = null, string $sheetName = 'Sheet 1', array $options = [])
+ * @method static array<string,mixed> fromCsv(string $csvOrPath, array $options = [])
+ * @method static array<string,mixed> fromQuery(mixed $source, array|null $columns = null, array $options = [])
  * @method static string getVersion()
  *
  * @see \HolySheet\HolySheet

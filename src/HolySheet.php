@@ -24,7 +24,7 @@ namespace HolySheet;
  */
 final class HolySheet
 {
-    public const VERSION = '1.0.1';
+    public const VERSION = '1.1.0';
 
     /* ------------------------------------------------------------------ */
     /* Instance API (used by the Facade + DI consumers)                    */
@@ -83,6 +83,55 @@ final class HolySheet
     public function describe(string $path): array
     {
         return Agent::describe($path);
+    }
+
+    /**
+     * Validate a schema and apply conservative repairs in one call.
+     *
+     * @param  array<string,mixed>  $schema
+     * @return array{schema:array<string,mixed>,errors:list<array<string,mixed>>,repairs:list<string>}
+     */
+    public function validateAndRepair(array $schema): array
+    {
+        return Agent::validateAndRepair($schema);
+    }
+
+    /**
+     * Build a schema from a flat array of rows + optional headers.
+     *
+     * @param  list<list<mixed>>  $rows
+     * @param  list<string>|null  $headers
+     * @param  array<string,mixed>  $options
+     * @return array<string,mixed>
+     */
+    public function fromArray(array $rows, ?array $headers = null, string $sheetName = 'Sheet 1', array $options = []): array
+    {
+        return Agent::fromArray($rows, $headers, $sheetName, $options);
+    }
+
+    /**
+     * Build a schema from a CSV string OR file path.
+     *
+     * @param  array<string,mixed>  $options
+     * @return array<string,mixed>
+     */
+    public function fromCsv(string $csvOrPath, array $options = []): array
+    {
+        return Agent::fromCsv($csvOrPath, $options);
+    }
+
+    /**
+     * Build a schema from an Eloquent / Query Builder / Collection.
+     * Laravel-only — delegates to `HolySheet\Laravel\Helpers\QueryAdapter`.
+     *
+     * @param  mixed  $source  Eloquent Builder, Query Builder, Collection, or iterable
+     * @param  list<string>|array<string,string>|null  $columns
+     * @param  array<string,mixed>  $options
+     * @return array<string,mixed>
+     */
+    public function fromQuery(mixed $source, array|null $columns = null, array $options = []): array
+    {
+        return \HolySheet\Laravel\Helpers\QueryAdapter::fromQuery($source, $columns, $options);
     }
 
     /** Package version (stable when tagged). */

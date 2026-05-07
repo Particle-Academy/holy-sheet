@@ -288,3 +288,102 @@ GenerateXlsxJob::dispatch($schema, $user->id, 'subscribers.xlsx');
 ```
 
 The facade is queue-safe — the singleton is cheap, no per-write state, deterministic output.
+
+## 11. Round-trip an existing xlsx
+
+Read a file you (or an end user) wrote, mutate the schema, write it back. Now an agent can iterate on its own output instead of regenerating from scratch.
+
+```php
+use HolySheet\Agent;
+
+$schema = Agent::describe('/tmp/sales.xlsx');
+
+// Update one cell + recalc the totals row
+$schema['sheets'][0]['cells']['B2']['value'] = 5_500_000;
+$schema['sheets'][0]['cells']['B5']['formula'] = 'SUM(B2:B4)';
+
+Agent::write($schema, '/tmp/sales.xlsx');
+```
+
+Lossy fields (themes, foreign custom number formats) are documented in [docs/ReadPath.md](./ReadPath.md). Holy-Sheet-authored files round-trip without loss for every documented feature.
+
+## 12. Build a workbook from arbitrary rows or a CSV
+
+No more hand-crafting schema arrays. The helpers infer types from headers and sample values:
+
+```php
+use HolySheet\Agent;
+
+// From rows + explicit headers
+$schema = Agent::fromArray(
+    rows:    [['NA', 4_820_000, 0.124], ['EU', 3_210_000, 0.081]],
+    headers: ['Region', 'Revenue', 'YoY'],
+);
+// Inferred: Region → string, Revenue → currency USD, YoY → percent
+
+Agent::write($schema, '/tmp/regions.xlsx');
+```
+
+Or first row as headers when omitted:
+
+```php
+$schema = Agent::fromArray([
+    ['Name', 'Email', 'Plan'],
+    ['Alice', 'alice@example.com', 'Pro'],
+    ['Bob',   'bob@example.com',   'Free'],
+]);
+```
+
+Or directly from CSV (string OR file path):
+
+```php
+$schema = Agent::fromCsv('/tmp/customers.csv');
+$schema = Agent::fromCsv("name,age\nAlice,30\nBob,42");
+Agent::write($schema, '/tmp/customers.xlsx');
+```
+
+Type-inference rules are listed in [docs/Schema.md](./Schema.md#schema-builders). Override with `$options['currency'] => 'EUR'` when you need a different default.
+
+## 13. Export from an Eloquent / Query Builder via `fromQuery`
+
+Laravel facade only — the core package stays framework-agnostic.
+
+```php
+use HolySheet\Laravel\Facades\HolySheet;
+
+$schema = HolySheet::fromQuery(
+    User::query()->where('subscribed', true)->orderBy('created_at'),
+    ['name', 'email', 'plan', 'mrr', 'created_at'],
+);
+HolySheet::write($schema, storage_path('app/exports/users.xlsx'));
+```
+
+Eloquent `$casts` win for type inference: `decimal:2` becomes a `number` column with two decimals, `datetime` becomes `datetime`, `boolean` becomes `boolean`, `array`/`json` becomes a JSON-encoded string.
+
+For custom header labels, pass an associative columns map:
+
+```php
+HolySheet::fromQuery($query, ['name' => 'User Name', 'mrr' => 'Monthly Revenue']);
+```
+
+Memory guard: defaults to a 5000-row cap; raise via `['limit' => 50_000]` or scope the query. Streaming over very large tables is on the 1.2 roadmap.
+
+## 14. The full agentic recovery loop
+
+When an agent generates a schema that *almost* validates, `validateAndRepair` cuts the recovery loop from 3 turns to 1:
+
+```php
+$schema = $agentOutput; // potentially imperfect
+
+$result = Agent::validateAndRepair($schema);
+
+if ($result['errors'] === []) {
+    Agent::write($result['schema'], '/tmp/out.xlsx');
+} else {
+    // re-prompt the agent with the (smaller) remaining error list
+    $remaining = $result['errors'];
+    $repaired = $result['schema']; // the parts that *were* fixed are already applied
+}
+```
+
+The `repairs` list names every applied fix as a human-readable string — log these so the agent can learn from auto-corrections rather than coming to depend on them.

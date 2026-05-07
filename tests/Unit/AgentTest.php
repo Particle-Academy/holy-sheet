@@ -12,12 +12,9 @@ it('returns the JSON schema as a parsed array from toolDefinition', function () 
     expect($def['definitions'])->toHaveKeys(['Sheet', 'Column', 'CellData', 'CellFormat']);
 });
 
-it('describe() stubs to a not-yet-implemented marker in 0.2', function () {
-    $result = Agent::describe('/some/path.xlsx');
-    expect($result)->toMatchArray([
-        'error' => 'not yet implemented',
-        'available_in' => '0.9',
-    ]);
+it('describe() returns not_found for a missing path', function () {
+    $result = Agent::describe('/this/path/does/not/exist.xlsx');
+    expect($result['error'])->toBe('not_found');
 });
 
 it('toBytes returns a non-empty xlsx string', function () {

@@ -64,6 +64,28 @@ final class Validator
     }
 
     /**
+     * Validate + apply conservative repairs.
+     *
+     * Returns the (possibly modified) schema, the original error list,
+     * and a list of human-readable repair descriptions. Multiple repairs
+     * compose — caller can re-validate the returned schema if needed.
+     *
+     * @param  array<string,mixed>  $schema
+     * @return array{schema:array<string,mixed>,errors:list<array<string,mixed>>,repairs:list<string>}
+     */
+    public function validateAndRepair(array $schema): array
+    {
+        $repairer = new Repairer();
+        [$repairedSchema, $repairs] = $repairer->repair($schema);
+        $errors = $this->validate($repairedSchema);
+        return [
+            'schema' => $repairedSchema,
+            'errors' => $errors,
+            'repairs' => $repairs,
+        ];
+    }
+
+    /**
      * @param  mixed  $sheet
      * @return list<array{path:string,expected:string,got:string,value:mixed,hint:string}>
      */

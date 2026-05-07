@@ -81,6 +81,9 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 - ✅ Style deduplication — every unique format becomes one record
 - ✅ Zero third-party runtime dependencies (uses PHP's built-in `ZipArchive`)
 - ✅ Structured validation errors with `path`, `expected`, `got`, `value`, `hint`
+- ✅ **Read path** (1.1+) — `Agent::describe(path)` round-trips an existing xlsx back to a Holy Sheet schema with full feature parity
+- ✅ **Schema repair** (1.1+) — `Agent::validateAndRepair($schema)` applies conservative auto-fixes (singular `sheet` → `sheets`, stringified numerics, object-as-list, etc.)
+- ✅ **Schema builders** (1.1+) — `Agent::fromArray()`, `Agent::fromCsv()`, `HolySheet::fromQuery()` (Laravel) — typed schemas from rows / CSV / Eloquent with no hand-crafting
 
 ## Compatibility
 
@@ -96,7 +99,8 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 | Topic | Doc |
 |-------|-----|
 | **Schema reference** — every field, every type, every option | [docs/Schema.md](docs/Schema.md) |
-| **Recipes** — 10 end-to-end patterns from agentic prompts to queue exports | [docs/Recipes.md](docs/Recipes.md) |
+| **Recipes** — 14 end-to-end patterns including round-trip + helper builders | [docs/Recipes.md](docs/Recipes.md) |
+| **Read path** — `describe()` contract + lossy-fields list | [docs/ReadPath.md](docs/ReadPath.md) |
 | **Laravel adapter** — facade methods, service provider, artisan command | [docs/LaravelAdapter.md](docs/LaravelAdapter.md) |
 | **Agent skill** — system prompt for LLM consumption | [skills/holy-sheet.md](skills/holy-sheet.md) |
 | **JSON Schema** — for tool-use validators | [skills/holy-sheet.schema.json](skills/holy-sheet.schema.json) |

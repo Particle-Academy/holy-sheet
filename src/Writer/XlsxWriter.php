@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace HolySheet\Writer;
 
 use HolySheet\Workbook\Cell;
+use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\Sheet;
 use HolySheet\Workbook\Workbook;
 use RuntimeException;
@@ -166,7 +167,7 @@ final class XlsxWriter
     {
         $sheetViewsXml = '';
         if ($sheet->frozenRows > 0 || $sheet->frozenCols > 0) {
-            $topLeft = $this->columnLetter($sheet->frozenCols).($sheet->frozenRows + 1);
+            $topLeft = CellAddress::letter($sheet->frozenCols).($sheet->frozenRows + 1);
             $pane = '<pane'
                 .($sheet->frozenCols > 0 ? ' xSplit="'.$sheet->frozenCols.'"' : '')
                 .($sheet->frozenRows > 0 ? ' ySplit="'.$sheet->frozenRows.'"' : '')
@@ -285,7 +286,7 @@ final class XlsxWriter
         foreach ($sheet->comments() as $entry) {
             $address = $entry['address'];
             preg_match('/^([A-Z]+)(\d+)$/', $address, $m);
-            $col = $this->columnIndex($m[1]);
+            $col = CellAddress::index($m[1]);
             $row = (int) $m[2] - 1;
             $shapeId++;
             $shapes .= '<v:shape id="_x0000_s'.$shapeId.'" type="#_x0000_t202" '
@@ -347,24 +348,4 @@ final class XlsxWriter
         return htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     }
 
-    private function columnLetter(int $index): string
-    {
-        $letters = '';
-        $n = $index;
-        do {
-            $letters = chr(65 + ($n % 26)).$letters;
-            $n = intdiv($n, 26) - 1;
-        } while ($n >= 0);
-        return $letters;
-    }
-
-    private function columnIndex(string $letters): int
-    {
-        $idx = 0;
-        $letters = strtoupper($letters);
-        for ($i = 0, $len = strlen($letters); $i < $len; $i++) {
-            $idx = $idx * 26 + (ord($letters[$i]) - 64);
-        }
-        return $idx - 1;
-    }
 }

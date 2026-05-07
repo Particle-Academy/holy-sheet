@@ -2,6 +2,26 @@
 
 All notable changes to `particle-academy/holy-sheet` will be documented in this file.
 
+## [1.1.0] — 2026-05-01
+
+The "agentic loop" release. v1.0 let agents *write*; v1.1 lets them *read*, *recover*, and *build* schemas from data they already have.
+
+### Added
+- **`Agent::describe(string $path): array`** — round-trip an existing xlsx back to a Holy Sheet schema. Full feature parity with the writer: values, formulas + cached values, every CellFormat field, comments, mergedRegions, columnWidths, frozen panes. Also reads xlsx files authored outside Holy Sheet (Excel, LibreOffice, Google Sheets) with the standard 50 built-in numFmt ids. Lossy fields documented in `docs/ReadPath.md`.
+- **`Agent::validateAndRepair(array $schema): array`** — runs validation and applies conservative repairs in one call. Returns `{schema, errors, repairs}`. Repair rules (high-confidence only): singular `sheet` → `sheets`, `row` → `rows`, object-keyed rows → indexed list, stringified numerics in numeric columns, unknown theme → `default`, ISO-date inference for missing column types, address whitespace trim. Ambiguous cases stay un-repaired by design.
+- **`Agent::fromArray($rows, $headers?, $sheetName?, $options?)`** — flat array → schema with type inference (header-pattern + value sampling). Currency, percent, integer, number, date/datetime, boolean, string detection.
+- **`Agent::fromCsv($csvOrPath, $options?)`** — CSV string OR file path → schema. Uses `fgetcsv` over a memory stream for embedded-newline support.
+- **`HolySheet::fromQuery($builder, $columns?, $options?)`** — Laravel facade only. Eloquent Builder, Query Builder, or Collection → schema. Reads model `$casts` for type inference (`decimal:2`, `datetime`, `boolean`, `array`/`json`, etc.). Default 5000-row safety cap (configurable via `$options['limit']`).
+- **`docs/ReadPath.md`** — describe() contract, lossy-fields list, reverse-numFmt notes.
+- **`examples/round-trip.php`** — runnable write → describe → modify → write demo.
+
+### Changed
+- The Laravel facade `@method` annotations + skill schema cover the new methods. Existing callers see no breaking changes.
+- `HolySheet::VERSION` bumped to `1.1.0`.
+
+### Tests
+- 61 Pest tests passing — adds `ReaderTest`, `RepairerTest`, `HelpersTest`, `Laravel/QueryAdapterTest`.
+
 ## [1.0.1] — 2026-05-06
 
 Adapter cleanup + comprehensive docs + runnable demo. No breaking changes if you only used the package's facade or `Agent::*` API.

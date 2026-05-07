@@ -13,7 +13,7 @@ entry_points:
   php: "HolySheet\\Agent::write($schema, $path)"
   http: "POST /holy-sheet/export  (Laravel apps that opt-in to the route)"
 schema_url: "vendor/particle-academy/holy-sheet/skills/holy-sheet.schema.json"
-version: "0.2"
+version: "1.1"
 ---
 
 # Skill: holy-sheet
@@ -335,3 +335,54 @@ agent generates → write() → user opens xlsx → user edits in Excel
 ```
 
 This is the loop for "make these changes to my spreadsheet" workflows.
+
+## 1.1: read, repair, build (the agentic loop)
+
+### Round-trip an existing xlsx with `Agent::describe()`
+
+When the user gives you an xlsx file (or you wrote one and need to revise), don't regenerate from scratch. Read it back to a schema, mutate the schema, write again:
+
+```php
+$schema = HolySheet\Agent::describe('/tmp/in.xlsx');
+// modify cells, formulas, merges…
+HolySheet\Agent::write($schema, '/tmp/out.xlsx');
+```
+
+`describe()` returns the same shape `write()` consumes. Holy-Sheet-authored files round-trip without loss; foreign Excel files round-trip everything except themes (they bake into per-cell formats — equivalent, not identical) and obscure custom number-format codes (returned raw).
+
+### Recover from imperfect schemas with `Agent::validateAndRepair()`
+
+If your generated schema has high-confidence-fixable issues (singular `sheet`, `row` typo, `{0:…,1:…}` instead of `[…]`, stringified numbers, unknown theme), run:
+
+```php
+$result = HolySheet\Agent::validateAndRepair($schema);
+// $result = ['schema' => array, 'errors' => list, 'repairs' => list<string>]
+```
+
+Apply `$result['schema']` directly; check `$result['repairs']` to learn what got fixed. Anything ambiguous stays in `$result['errors']` for you to address.
+
+### Build schemas from data you already have
+
+Three helpers replace hand-crafted schema arrays — type inference reads header names + sample values:
+
+```php
+HolySheet\Agent::fromArray($rows, $headers);
+HolySheet\Agent::fromCsv($csvOrPath);
+HolySheet\Laravel\Facades\HolySheet::fromQuery($eloquentBuilder, $columns);
+```
+
+Inference picks `currency` for headers like *revenue/amount/price*, `percent` for *rate/growth/yoy* (when values are in [0,1]), `integer` for *count/qty/id*, ISO date strings → `date`/`datetime`, otherwise `auto`/`string`. Eloquent `$casts` win over header inference when you pass a Builder.
+
+### What gets auto-repaired
+
+Conservative repairs only — the package never invents missing required fields. The repairer fixes:
+
+- Top-level `sheet` → `sheets` (renames + wraps)
+- Sheet `row` → `rows`
+- Row map → row list (`{0:…,1:…}` → `[…]`)
+- Stringified numerics in number/integer/currency/percent columns
+- Unknown theme → `'default'`
+- Whitespace in cell addresses
+- Missing column type, all-ISO-date values → infer `'date'`
+
+It does **not** fix: missing `sheets`, missing sheet `name`, type mismatches outside the stringified-numeric case, anything with multiple plausible interpretations. Those come back as errors for the agent to handle.

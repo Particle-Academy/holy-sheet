@@ -6,6 +6,7 @@ namespace HolySheet\Schema;
 
 use DateTimeInterface;
 use HolySheet\Workbook\Cell;
+use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\CellComment;
 use HolySheet\Workbook\CellFormat;
 use HolySheet\Workbook\MergedRegion;
@@ -59,7 +60,7 @@ final class Normalizer
 
         if ($columns !== []) {
             foreach ($columns as $col => $columnDef) {
-                $address = $this->columnLetter($col).'1';
+                $address = CellAddress::letter($col).'1';
                 $header = is_array($columnDef) ? ($columnDef['header'] ?? '') : (string) $columnDef;
                 $cells[$address] = new Cell($address, (string) $header, format: $theme->headerFormat());
             }
@@ -68,7 +69,7 @@ final class Normalizer
 
         foreach ($rows as $r => $row) {
             foreach ($row as $c => $value) {
-                $address = $this->columnLetter($c).($r + 1 + $headerOffset);
+                $address = CellAddress::letter($c).($r + 1 + $headerOffset);
                 $columnFormat = $columnFormats[$c] ?? null;
                 $rowBand = $theme->dataFormat($r);
                 $merged = $rowBand !== null ? ($columnFormat?->mergeWith($rowBand) ?? $rowBand) : $columnFormat;
@@ -79,8 +80,8 @@ final class Normalizer
         if (!empty($sheet['totals']) && is_array($sheet['totals']) && $rows !== [] && $columns !== []) {
             $totalsRow = count($rows) + 1 + $headerOffset;
             $totalsTheme = $theme->totalsFormat();
-            $cells[$this->columnLetter(0).$totalsRow] = new Cell(
-                $this->columnLetter(0).$totalsRow,
+            $cells[CellAddress::letter(0).$totalsRow] = new Cell(
+                CellAddress::letter(0).$totalsRow,
                 'Total',
                 format: $totalsTheme,
             );
@@ -88,7 +89,7 @@ final class Normalizer
             foreach ($sheet['totals'] as $headerKey => $aggOp) {
                 if (!isset($columnByHeader[$headerKey])) continue;
                 $colIdx = $columnByHeader[$headerKey];
-                $colLetter = $this->columnLetter($colIdx);
+                $colLetter = CellAddress::letter($colIdx);
                 $rangeStart = $colLetter.($headerOffset + 1);
                 $rangeEnd = $colLetter.(count($rows) + $headerOffset);
                 $func = strtoupper((string) $aggOp);
@@ -242,14 +243,4 @@ final class Normalizer
         return $value;
     }
 
-    private function columnLetter(int $index): string
-    {
-        $letters = '';
-        $n = $index;
-        do {
-            $letters = chr(65 + ($n % 26)).$letters;
-            $n = intdiv($n, 26) - 1;
-        } while ($n >= 0);
-        return $letters;
-    }
 }

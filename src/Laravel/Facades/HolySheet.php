@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array<string,mixed> fromArray(array $rows, ?array $headers = null, string $sheetName = 'Sheet 1', array $options = [])
  * @method static array<string,mixed> fromCsv(string $csvOrPath, array $options = [])
  * @method static array<string,mixed> fromQuery(mixed $source, array|null $columns = null, array $options = [])
+ * @method static list<array{sheet:string,address:string,formula:string,error:string,hint:string}> lint(array $schema)
  * @method static string getVersion()
  *
  * @see \HolySheet\HolySheet

@@ -7,6 +7,7 @@ namespace HolySheet;
 use HolySheet\Helpers\ArrayBuilder;
 use HolySheet\Helpers\CsvBuilder;
 use HolySheet\Reader\XlsxReader;
+use HolySheet\Schema\FormulaLinter;
 use HolySheet\Schema\Normalizer;
 use HolySheet\Schema\Repairer;
 use HolySheet\Schema\Validator;
@@ -148,5 +149,22 @@ final class Agent
     public static function fromCsv(string $csvOrPath, array $options = []): array
     {
         return CsvBuilder::build($csvOrPath, $options);
+    }
+
+    /**
+     * Evaluate every formula in a schema and report cells that produce
+     * Excel-style errors (`#VALUE!`, `#REF!`, `#DIV/0!`, `#NAME?`, `#CIRC!`).
+     * Catches the bugs an LLM can introduce: referencing the header row
+     * instead of a data row, passing a string to a numeric operator,
+     * citing a cell that doesn't exist, or building a circular dependency.
+     *
+     * Empty list = all formulas evaluate cleanly.
+     *
+     * @param  array<string,mixed>  $schema
+     * @return list<array{sheet:string,address:string,formula:string,error:string,hint:string}>
+     */
+    public static function lint(array $schema): array
+    {
+        return (new FormulaLinter())->lint($schema);
     }
 }

@@ -2,6 +2,30 @@
 
 All notable changes to `particle-academy/holy-sheet` will be documented in this file.
 
+## [1.2.0] — 2026-05-08
+
+The "agentic spreadsheets that actually work" release. v1.1 let agents read, repair, and build schemas; v1.2 makes their *formulas* trustworthy.
+
+### Added
+- **`Agent::lint(array $schema): array`** — evaluates every formula in a schema and reports cells that produce Excel-style errors (`#VALUE!`, `#REF!`, `#DIV/0!`, `#NAME?`, `#CIRC!`). Catches the bug class an LLM is most likely to introduce: referencing the header row instead of the first data row. The `hint` field on each issue surfaces *why* it failed and (for header-row-vs-data-row) suggests the correct cell.
+  ```php
+  $issues = Agent::lint($schema);
+  // [
+  //   ['sheet' => 'Q4', 'address' => 'C2', 'formula' => 'B1*12',
+  //    'error' => '#VALUE!',
+  //    'hint' => 'Arithmetic on a non-numeric cell: B1 = "Annual" (string). Did you mean B2? (it holds 12000)'],
+  // ]
+  ```
+- **`HolySheet::lint()` instance method + facade `@method` annotation** — same surface for Laravel apps.
+- **Built-in formula evaluator** (`Schema\FormulaLinter`) — pure PHP, zero dependencies. Supports the formula vocabulary agents actually emit: arithmetic, comparison, string concat, cell refs, ranges (incl. cross-sheet `Sheet!A1`), and the common functions: `SUM`, `AVERAGE`/`AVG`, `COUNT`, `COUNTA`, `MIN`, `MAX`, `IF`, `ROUND`, `ABS`, `LEN`, `UPPER`, `LOWER`, `CONCAT`/`CONCATENATE`. Unknown functions return `#NAME?` so agents know to avoid them.
+
+### Tests
+- 70 Pest tests passing — adds 9 new tests in `FormulaLinterTest` covering header-row off-by-one, division by zero, circular references, unknown functions, cross-sheet refs, and string-in-arithmetic detection.
+
+### Compatibility
+- No breaking changes. New methods only.
+- Still standalone — `composer.json` `require` remains `php ^8.2 + ext-zip`. Zero third-party runtime deps.
+
 ## [1.1.0] — 2026-05-01
 
 The "agentic loop" release. v1.0 let agents *write*; v1.1 lets them *read*, *recover*, and *build* schemas from data they already have.

@@ -24,7 +24,7 @@ namespace HolySheet;
  */
 final class HolySheet
 {
-    public const VERSION = '1.1.0';
+    public const VERSION = '1.2.0';
 
     /* ------------------------------------------------------------------ */
     /* Instance API (used by the Facade + DI consumers)                    */
@@ -132,6 +132,17 @@ final class HolySheet
     public function fromQuery(mixed $source, array|null $columns = null, array $options = []): array
     {
         return \HolySheet\Laravel\Helpers\QueryAdapter::fromQuery($source, $columns, $options);
+    }
+
+    /**
+     * Evaluate every formula and report cells that produce Excel errors.
+     *
+     * @param  array<string,mixed>  $schema
+     * @return list<array{sheet:string,address:string,formula:string,error:string,hint:string}>
+     */
+    public function lint(array $schema): array
+    {
+        return Agent::lint($schema);
     }
 
     /** Package version (stable when tagged). */

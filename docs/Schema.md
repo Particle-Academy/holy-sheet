@@ -246,6 +246,29 @@ $schema = HolySheet::fromQuery($builder, ['name' => 'User Name', 'mrr' => 'MRR']
 
 Type inference picks reasonable column types from header names + sample values: `revenue`/`amount`/`cost`/`price` → currency; `rate`/`percent`/`growth` (with values in [0,1]) → percent; `count`/`qty`/`id` → integer; ISO date strings → date/datetime; everything else → `auto`/`string`. For `fromQuery`, Eloquent `$casts` win when present (`decimal:2` → number with 2 decimals, `datetime` → datetime, etc.).
 
+## Formula linting
+
+`Agent::lint($schema)` evaluates every formula and returns cells that produce Excel errors:
+
+```php
+$issues = Agent::lint($schema);
+// list<{sheet, address, formula, error, hint}>
+```
+
+| Error | Trigger |
+|---|---|
+| `#VALUE!` | Arithmetic on a non-numeric cell (often header-row off-by-one) |
+| `#REF!` | Malformed cell reference |
+| `#DIV/0!` | Division by zero |
+| `#NAME?` | Unknown function or syntax error |
+| `#CIRC!` | Circular reference (A → B → A) |
+
+The `hint` field surfaces what went wrong and, for the most common LLM bug (referencing row 1 — the header — instead of row 2 — the first data row), suggests the correct cell.
+
+Supported function vocabulary: `SUM`, `AVERAGE`/`AVG`, `COUNT`, `COUNTA`, `MIN`, `MAX`, `IF`, `ROUND`, `ABS`, `LEN`, `UPPER`, `LOWER`, `CONCAT`/`CONCATENATE`. Anything else returns `#NAME?`. Out of scope: array formulas, dynamic arrays, structured table refs, named ranges.
+
+Agentic loops should call `lint()` *after* validation/repair and *before* writing — if it returns a non-empty list, feed the issues back to the model so it can fix references and retry.
+
 ## See also
 
 - [Recipes](./Recipes.md) — concrete end-to-end patterns

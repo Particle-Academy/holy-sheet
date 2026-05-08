@@ -84,6 +84,7 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 - ✅ **Read path** (1.1+) — `Agent::describe(path)` round-trips an existing xlsx back to a Holy Sheet schema with full feature parity
 - ✅ **Schema repair** (1.1+) — `Agent::validateAndRepair($schema)` applies conservative auto-fixes (singular `sheet` → `sheets`, stringified numerics, object-as-list, etc.)
 - ✅ **Schema builders** (1.1+) — `Agent::fromArray()`, `Agent::fromCsv()`, `HolySheet::fromQuery()` (Laravel) — typed schemas from rows / CSV / Eloquent with no hand-crafting
+- ✅ **Formula linter** (1.2+) — `Agent::lint($schema)` evaluates every formula and reports `#VALUE!` / `#REF!` / `#DIV/0!` / `#NAME?` / `#CIRC!` errors. Catches the LLM-classic header-row off-by-one (`B1*12` when B1 is "Annual" and B2 is the data) with a "Did you mean B2?" hint
 
 ## Compatibility
 

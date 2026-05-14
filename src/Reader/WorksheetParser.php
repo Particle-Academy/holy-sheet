@@ -26,15 +26,16 @@ final class WorksheetParser
     /**
      * @param  list<?CellFormat>  $stylesIndex
      * @param  array<string,CellComment>  $comments
+     * @param  list<string>  $sharedStrings
      */
-    public static function parse(string $worksheetXml, string $name, array $stylesIndex, array $comments = []): Sheet
+    public static function parse(string $worksheetXml, string $name, array $stylesIndex, array $comments = [], array $sharedStrings = []): Sheet
     {
         $xml = @simplexml_load_string($worksheetXml);
         if ($xml === false) {
             return new Sheet(name: $name);
         }
 
-        $cells = self::parseCells($xml, $stylesIndex, $comments);
+        $cells = self::parseCells($xml, $stylesIndex, $comments, $sharedStrings);
         $merges = self::parseMerges($xml);
         $columnWidths = self::parseColumnWidths($xml);
         [$frozenRows, $frozenCols] = self::parseFrozen($xml);
@@ -52,9 +53,10 @@ final class WorksheetParser
     /**
      * @param  list<?CellFormat>  $stylesIndex
      * @param  array<string,CellComment>  $comments
+     * @param  list<string>  $sharedStrings
      * @return array<string,Cell>
      */
-    private static function parseCells(SimpleXMLElement $xml, array $stylesIndex, array $comments): array
+    private static function parseCells(SimpleXMLElement $xml, array $stylesIndex, array $comments, array $sharedStrings): array
     {
         $cells = [];
         if (!isset($xml->sheetData) || !$xml->sheetData->row) return $cells;
@@ -79,9 +81,8 @@ final class WorksheetParser
                 } elseif ($type === 'inlineStr' && isset($c->is) && isset($c->is->t)) {
                     $value = (string) $c->is->t;
                 } elseif ($type === 's' && isset($c->v)) {
-                    // Shared string — Holy Sheet's writer doesn't emit these but Excel does.
-                    // For now, return the index as a string; full sharedStrings.xml support lands in 1.2.
-                    $value = '[shared:'.((string) $c->v).']';
+                    $idx = (int) (string) $c->v;
+                    $value = $sharedStrings[$idx] ?? '';
                 } elseif (isset($c->v)) {
                     $value = self::coerceValue((string) $c->v, $type);
                 }

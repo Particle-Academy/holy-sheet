@@ -48,6 +48,9 @@ final class XlsxReader
         $stylesXml = $zip->getFromName('xl/styles.xml');
         $stylesIndex = is_string($stylesXml) ? StylesParser::parse($stylesXml) : [];
 
+        $sharedStringsXml = $zip->getFromName('xl/sharedStrings.xml');
+        $sharedStrings = is_string($sharedStringsXml) ? SharedStringsParser::parse($sharedStringsXml) : [];
+
         $workbookXml = $zip->getFromName('xl/workbook.xml');
         if ($workbookXml === false) {
             $zip->close();
@@ -94,7 +97,7 @@ final class XlsxReader
                     }
                 }
 
-                $sheets[] = WorksheetParser::parse($worksheetXml, $name, $stylesIndex, $comments);
+                $sheets[] = WorksheetParser::parse($worksheetXml, $name, $stylesIndex, $comments, $sharedStrings);
                 $i++;
             }
         }

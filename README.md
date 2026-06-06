@@ -1,5 +1,7 @@
 # Holy Sheet
 
+[![Fancy UI suite](art/fancy-ui.svg)](https://particle.academy)
+
 **Standalone spreadsheet writing tool for agentic document creation.**
 
 PHP 8.2+ library for writing valid xlsx files from a JSON-shaped schema. Zero framework dependencies in the core (just `ext-zip`). An optional Laravel adapter — service provider, facade, artisan command — sits in `HolySheet\Laravel\*` and only loads when used. No HTTP routes, no controllers, no opinions about how your app exposes the writer; that's your pipeline's job.

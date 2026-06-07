@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace HolySheet;
 
+use HolySheet\Schema\DumpOptions;
+
 /**
  * Holy Sheet — main entry point.
  *
@@ -24,7 +26,7 @@ namespace HolySheet;
  */
 final class HolySheet
 {
-    public const VERSION = '1.2.0';
+    public const VERSION = '1.3.0';
 
     /* ------------------------------------------------------------------ */
     /* Instance API (used by the Facade + DI consumers)                    */
@@ -143,6 +145,18 @@ final class HolySheet
     public function lint(array $schema): array
     {
         return Agent::lint($schema);
+    }
+
+    /**
+     * Serialize a schema to JSON — the read-tool counterpart to describe().
+     * describe() returns an existing file's shape; dumpJson() returns its
+     * full cell-level content (values + formulas) for targeted edits.
+     *
+     * @param  array<string,mixed>  $schema
+     */
+    public function dumpJson(array $schema, ?DumpOptions $opts = null): string
+    {
+        return Agent::dumpJson($schema, $opts);
     }
 
     /** Package version (stable when tagged). */

@@ -2,6 +2,26 @@
 
 All notable changes to `particle-academy/holy-sheet` will be documented in this file.
 
+## [1.3.0] — 2026-06-07
+
+The "agent kit that happens to write xlsx" release. One bug fix and two DX features that every Laravel/AI integration on Holy Sheet was re-implementing by hand.
+
+### Added
+- **`=`-formula promotion** — a bare string cell value beginning with `=` (e.g. `'=A2+B2'`, `'=SUM(B2:B10)'`) is now stored as a real formula cell instead of literal text. Works in row cells **and** sparse `cells` maps. Object cells are left untouched, so `{'value': '=text'}` is the escape hatch for a genuine leading-`=` string and `{'formula': '...'}` still means "caller knows best". Promotion happens in `Schema\Normalizer`, so the write path *and* `lint()` both pick it up. ([#2](https://github.com/Particle-Academy/holy-sheet/issues/2))
+  ```php
+  // before: C2 holds the text "=A2+B2"; after: C2 evaluates to 30
+  ['rows' => [[10, 20, '=A2+B2']]]
+  ```
+- **`Agent::dumpJson(array $schema, ?DumpOptions $opts = null): string`** (+ `HolySheet::dumpJson()` instance/facade) — serializes a schema to JSON: the read-tool counterpart to `describe()`. `describe()` gives an agent the *shape* of an existing file; `dumpJson()` gives the full cell-level *content* (values + formulas) so it can make targeted edits or fix existing formulas. `DumpOptions` controls `prettyPrint`, `includeFormats`, `compactEmpty`, and a `maxBytes` ceiling (over budget → a compact shape index instead of an unbounded blob). ([#3](https://github.com/Particle-Academy/holy-sheet/issues/3))
+- **`HolySheet\Toolkit` — the framework-agnostic agent toolkit.** Ships the canonical Build / Write / Read / Lint / Describe tools as plain descriptors (`name` + `description` + JSON-Schema `parameters` + callable `handler`) plus an overridable agent prompt (`resources/prompts/agent.md`). `Toolkit::for($store)->tools()` returns them; `write_xlsx` runs the self-correcting validate → lint → persist loop. Model-agnostic via the tiny `SchemaStore` interface (`getSchema`/`setSchema`/`getId`) with an in-memory `ArraySchemaStore`. No new package, no `laravel/ai` coupling — a laravel/ai mapping is a README recipe. ([#4](https://github.com/Particle-Academy/holy-sheet/issues/4))
+
+### Tests
+- 93 Pest tests passing (+22): `FormulaPromotionTest`, `DumperTest`, `ToolkitTest`.
+
+### Compatibility
+- No breaking changes. New methods + a new `Toolkit` namespace only; existing schemas behave identically (a bare `=string` was never usefully stored as text before).
+- Still standalone — zero third-party runtime deps, `php ^8.2 + ext-zip`.
+
 ## [1.2.0] — 2026-05-08
 
 The "agentic spreadsheets that actually work" release. v1.1 let agents read, repair, and build schemas; v1.2 makes their *formulas* trustworthy.

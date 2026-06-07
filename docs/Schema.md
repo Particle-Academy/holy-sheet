@@ -112,6 +112,13 @@ A row is an array of values, one per column. Each value can be:
 }
 ```
 
+> **Formula shorthand (1.3+):** a **bare string** cell value beginning with `=` is
+> promoted to a real formula cell — `"=SUM(A2:A10)"` is equivalent to
+> `{ "value": null, "formula": "SUM(A2:A10)" }`. Promotion applies only to bare
+> strings (in `rows` and in the sparse `cells` map). An object cell is always taken
+> literally, so `{ "value": "=text" }` is the escape hatch for a genuine leading-`=`
+> string, and `{ "formula": "..." }` is respected as-is.
+
 ## Cells (sparse mode)
 
 ```json

@@ -7,6 +7,8 @@ namespace HolySheet;
 use HolySheet\Helpers\ArrayBuilder;
 use HolySheet\Helpers\CsvBuilder;
 use HolySheet\Reader\XlsxReader;
+use HolySheet\Schema\DumpOptions;
+use HolySheet\Schema\Dumper;
 use HolySheet\Schema\FormulaLinter;
 use HolySheet\Schema\Normalizer;
 use HolySheet\Schema\Repairer;
@@ -166,5 +168,19 @@ final class Agent
     public static function lint(array $schema): array
     {
         return (new FormulaLinter())->lint($schema);
+    }
+
+    /**
+     * Serialize a schema to JSON — the read-tool counterpart to describe().
+     * describe() gives an agent the SHAPE of an existing file; dumpJson()
+     * gives it the CONTENT (every value + formula) so it can make targeted
+     * cell edits or fix existing formulas, then write back through the
+     * validate → lint → repair loop.
+     *
+     * @param  array<string,mixed>  $schema
+     */
+    public static function dumpJson(array $schema, ?DumpOptions $opts = null): string
+    {
+        return (new Dumper())->dump($schema, $opts);
     }
 }

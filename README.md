@@ -87,6 +87,49 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 - ✅ **Schema repair** (1.1+) — `Agent::validateAndRepair($schema)` applies conservative auto-fixes (singular `sheet` → `sheets`, stringified numerics, object-as-list, etc.)
 - ✅ **Schema builders** (1.1+) — `Agent::fromArray()`, `Agent::fromCsv()`, `HolySheet::fromQuery()` (Laravel) — typed schemas from rows / CSV / Eloquent with no hand-crafting
 - ✅ **Formula linter** (1.2+) — `Agent::lint($schema)` evaluates every formula and reports `#VALUE!` / `#REF!` / `#DIV/0!` / `#NAME?` / `#CIRC!` errors. Catches the LLM-classic header-row off-by-one (`B1*12` when B1 is "Annual" and B2 is the data) with a "Did you mean B2?" hint
+- ✅ **`=`-formula promotion** (1.3+) — a bare string cell beginning with `=` (e.g. `'=A2+B2'`, `'=SUM(B2:B10)'`) is stored as a real formula, not literal text. Use the object form `{'value': '=text'}` for a genuine leading-`=` string
+- ✅ **`dumpJson()`** (1.3+) — `Agent::dumpJson($schema, ?DumpOptions)` serializes a schema to JSON (values + formulas). The read-tool counterpart to `describe()`: describe gives shape, dumpJson gives content. Compaction + a byte ceiling keep agent token cost bounded
+- ✅ **Agent toolkit** (1.3+) — `HolySheet\Toolkit\Toolkit` ships the canonical Build / Write / Read / Lint / Describe tools as framework-agnostic descriptors (`name` + `description` + JSON-Schema `parameters` + callable `handler`) plus a shipped agent prompt. Map them onto any SDK in a few lines (see [Agent toolkit](#agent-toolkit))
+
+## Agent toolkit
+
+Every team building a spreadsheet agent on Holy Sheet hand-writes the same Build / Write / Read / Lint tools and the same validate → lint → repair loop. That layer is shipped — framework-agnostic, zero coupling:
+
+```php
+use HolySheet\Toolkit\Toolkit;
+use HolySheet\Toolkit\ArraySchemaStore;
+
+$kit = Toolkit::for(new ArraySchemaStore());        // or your own SchemaStore
+$system = Toolkit::instructions();                  // the shipped agent prompt
+
+foreach ($kit->tools() as $tool) {
+    // $tool->name, $tool->description, $tool->parameters (JSON Schema), $tool->handler
+    $sdk->registerTool($tool->name, $tool->description, $tool->parameters, $tool->handler);
+}
+```
+
+The host provides three things by implementing `SchemaStore` (`getSchema()`, `setSchema()`, `getId()`) — where the workbook lives, the agent loop, and the UI. The toolkit provides the tools, the prompts, and the self-correcting write behavior (`write_xlsx` validates → lints → and only persists when clean; on error it returns the issues so the agent fixes and retries).
+
+### Recipe: laravel/ai
+
+`laravel/ai` consumes the same four fields. Wrap each descriptor in a `Tool` — no extra package required:
+
+```php
+use Laravel\Ai\Tools\Tool;
+use HolySheet\Toolkit\Toolkit;
+
+$descriptors = Toolkit::for($store)->byName();
+
+$tools = array_map(
+    fn ($d) => Tool::make($d->name)
+        ->description($d->description)
+        ->schema($d->parameters)
+        ->using(fn (array $args) => $d->call($args)),
+    $descriptors,
+);
+
+return $agent->withInstructions(Toolkit::instructions())->withTools($tools)->stream($prompt);
+```
 
 ## Compatibility
 

@@ -387,3 +387,46 @@ if ($result['errors'] === []) {
 ```
 
 The `repairs` list names every applied fix as a human-readable string — log these so the agent can learn from auto-corrections rather than coming to depend on them.
+
+## 15. Read a workbook's full content back (`dumpJson`)
+
+`describe()` returns an existing file's *shape*; `dumpJson()` returns the full
+cell-level *content* (every value + formula) so an agent can make targeted edits or
+fix existing formulas. It's the read half of the loop:
+
+```php
+use HolySheet\Agent;
+use HolySheet\Schema\DumpOptions;
+
+$json = Agent::dumpJson($schema);                    // defaults: formats kept, empties dropped, 64K ceiling
+$json = Agent::dumpJson($schema, DumpOptions::compact());  // minified, formats stripped — smallest token cost
+$json = Agent::dumpJson($schema, new DumpOptions(maxBytes: 0)); // unbounded
+```
+
+Over the `maxBytes` ceiling, `dumpJson` returns a compact shape index
+(`{ "_truncated": true, "sheets": [{ "name", "rows", "cells" }] }`) instead of an
+unbounded blob — so a single read never blows the token budget; the agent narrows
+its read instead.
+
+## 16. Drop-in agent toolkit (any framework)
+
+Skip hand-writing Build / Write / Read / Lint / Describe tools — `HolySheet\Toolkit`
+ships them as framework-agnostic descriptors plus the canonical agent prompt:
+
+```php
+use HolySheet\Toolkit\Toolkit;
+use HolySheet\Toolkit\ArraySchemaStore;
+
+$kit = Toolkit::for(new ArraySchemaStore($existingSchema)); // or your own SchemaStore
+$system = Toolkit::instructions();
+
+foreach ($kit->tools() as $tool) {
+    $sdk->registerTool($tool->name, $tool->description, $tool->parameters, $tool->handler);
+}
+```
+
+Implement `SchemaStore` (`getSchema`/`setSchema`/`getId`) to back the toolkit with
+your own model — an Eloquent workbook, a Redis blob, a file, anything. `write_xlsx`
+runs the validate → lint → persist loop and only saves when clean; on error it
+returns the issues for the agent to fix and retry. The README has a `laravel/ai`
+mapping recipe.

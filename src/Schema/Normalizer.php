@@ -122,6 +122,20 @@ final class Normalizer
         $cells = [];
         foreach ($map as $address => $cellData) {
             $address = (string) $address;
+
+            // Bare scalar cell value, e.g. ['A1' => 42] or ['A1' => '=SUM(B1:B5)'].
+            // A leading "=" string is promoted to a formula; everything else is
+            // a plain value. Object cells fall through to the explicit branch.
+            if (!is_array($cellData)) {
+                [$bare, $formula] = $this->promoteFormula($cellData);
+                $cells[$address] = new Cell(
+                    address: $address,
+                    value: $formula !== null ? null : $this->coerceValue($bare, null),
+                    formula: $formula,
+                );
+                continue;
+            }
+
             $format = isset($cellData['format']) && is_array($cellData['format'])
                 ? CellFormat::fromArray($cellData['format'])
                 : null;
@@ -210,11 +224,34 @@ final class Normalizer
             );
         }
 
+        [$value, $formula] = $this->promoteFormula($value);
+
         return new Cell(
             address: $address,
-            value: $this->coerceValue($value, $columnFormat),
+            value: $formula !== null ? null : $this->coerceValue($value, $columnFormat),
+            formula: $formula,
             format: $columnFormat,
         );
+    }
+
+    /**
+     * A bare string cell value beginning with "=" (e.g. "=SUM(B2:B10)") is an
+     * Excel formula, not literal text — promote it to a real formula cell.
+     *
+     * Only *bare* strings promote. An object cell ({"value": "=x"} or
+     * {"formula": "x"}) is always taken as the caller's explicit intent, so
+     * {"value": "=literal"} is the escape hatch for a genuine leading-"=" string,
+     * and {"formula": "..."} means the caller already knows best.
+     *
+     * @return array{0: mixed, 1: string|null}  [value, formula]
+     */
+    private function promoteFormula(mixed $value): array
+    {
+        if (is_string($value) && strlen($value) > 1 && $value[0] === '=') {
+            return [null, substr($value, 1)];
+        }
+
+        return [$value, null];
     }
 
     private function coerceValue(mixed $value, ?CellFormat $format): string|int|float|bool|null

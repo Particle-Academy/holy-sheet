@@ -110,6 +110,12 @@ Inside `rows`, replace a primitive with `{value, formula?, format?, comment?}`:
 ]
 ```
 
+**Formulas (1.3+):** a bare string beginning with `=` is promoted to a real formula
+cell automatically — `["Q1", 10, 20, "=B2+C2"]` writes a live formula, not text. The
+explicit `{ "value": null, "formula": "B2+C2" }` form (no leading `=`) still works. To
+store a *literal* leading-`=` string, use `{ "value": "=text" }` (an object value is
+never auto-promoted).
+
 Or use the sparse `cells` shape for sheet-wide control:
 
 ```json
@@ -300,7 +306,7 @@ To dry-run without writing, call `Agent::validate()` — it returns the error li
 
 ## Anti-patterns
 
-- ❌ **Don't put A1 references in row data.** Use `totals` shorthand or `@ColumnName` references in formulas. Agents that write `[["Total", "=SUM(B2:B10)"]]` directly will work, but the schema-driven path handles ranges automatically.
+- ⚠️ **Prefer `totals` shorthand over hand-written A1 ranges in row data.** A bare `"=SUM(B2:B10)"` in a row cell is promoted to a real formula (1.3+) and works fine, but the schema-driven `totals` path tracks ranges for you and won't drift when rows are added.
 - ❌ **Don't pass dates as Excel serial numbers** (e.g. `45678`). Use ISO strings (`"2026-05-01"`) or PHP `DateTimeInterface` objects.
 - ❌ **Don't pre-format numbers as strings.** Pass `4820000`, not `"$4,820,000"`. Use `type: "currency"` for the formatting.
 - ❌ **Don't construct multiple workbook calls for one file.** A single `write()` call takes the full schema. Multiple calls would overwrite the previous file.

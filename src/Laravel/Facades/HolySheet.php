@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array<string,mixed> fromCsv(string $csvOrPath, array $options = [])
  * @method static array<string,mixed> fromQuery(mixed $source, array|null $columns = null, array $options = [])
  * @method static list<array{sheet:string,address:string,formula:string,error:string,hint:string}> lint(array $schema)
+ * @method static string dumpJson(array $schema, ?\HolySheet\Schema\DumpOptions $opts = null)
  * @method static string getVersion()
  *
  * @see \HolySheet\HolySheet

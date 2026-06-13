@@ -172,3 +172,9 @@ Need an HTTP route? Build your own controller around the facade — Holy Sheet d
 ## License
 
 MIT
+
+---
+
+## ⭐ Star Fancy UI
+
+If this package is useful to you, a quick ⭐ on the repo really helps us build a better kit. Thank you!

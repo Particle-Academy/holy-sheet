@@ -2,6 +2,40 @@
 
 All notable changes to `particle-academy/holy-sheet` will be documented in this file.
 
+## [2.0.1] — 2026-08-09
+
+### Fixed
+
+- **Numeric strings past `PHP_INT_MAX` were clamped, and negative exponents read
+  as zero.** Cell values were coerced with `str_contains($v, '.') ? (float) : (int)`,
+  and that dot test is not a numeric test:
+
+  | input | was | now |
+  |---|---|---|
+  | `"1e21"` | `9223372036854775807` (`PHP_INT_MAX`) | `1e21` |
+  | `"99999999999999999999"` | `9223372036854775807` | `1e20` |
+  | `"2e-3"` | `0` | `0.002` |
+
+  Now `$value + 0`, which is PHP's own numeric-string coercion: still `int` for
+  integral in-range strings (`"007"` is `7`, unchanged), `float` otherwise.
+  Fixed in `CsvBuilder`, `Schema/Normalizer` and `Schema/Repairer` — all three
+  carried the same line.
+
+  Nothing threw: a clamped value is a plausible-looking integer, so a sheet with
+  the wrong number in it opened fine and was believed.
+
+- **`NAN` and `INF` were written into cells** as `<v>NAN</v>`, which is neither a
+  number nor valid cell content. Both now write `0`, matching the Node port.
+
+  **What you must do:** nothing, unless you were relying on a clamped value — in
+  which case the sheet had the wrong number in it and now has the right one.
+
+### Note
+
+`2.0.0` has no entry in this file. It predates the changelog rule being enforced
+here, and the PHP repos have no publish-time gate to catch that the way the npm
+ones do. Left as-is rather than reconstructed after the fact.
+
 ## [1.3.0] — 2026-06-07
 
 The "agent kit that happens to write xlsx" release. One bug fix and two DX features that every Laravel/AI integration on Holy Sheet was re-implementing by hand.

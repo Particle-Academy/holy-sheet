@@ -266,7 +266,9 @@ final class Normalizer
         }
 
         if (is_string($value) && is_numeric($value)) {
-            return str_contains($value, '.') ? (float) $value : (int) $value;
+            // See CsvBuilder: `+ 0` is PHP's numeric-string coercion; the dot
+            // test clamped at PHP_INT_MAX and read "2e-3" as 0.
+            return $value + 0;
         }
 
         if ($value instanceof DateTimeInterface) {

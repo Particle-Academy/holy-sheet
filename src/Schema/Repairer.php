@@ -165,7 +165,8 @@ final class Repairer
                 if (!is_array($row)) continue;
                 $value = $row[$colIdx] ?? null;
                 if (is_string($value) && is_numeric($value)) {
-                    $sheet['rows'][$r][$colIdx] = str_contains($value, '.') ? (float) $value : (int) $value;
+                    // See CsvBuilder: `+ 0` is PHP's numeric-string coercion.
+                    $sheet['rows'][$r][$colIdx] = $value + 0;
                 }
             }
         }

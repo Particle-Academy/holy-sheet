@@ -45,7 +45,12 @@ final class CsvBuilder
         foreach ($dataRows as $r => $row) {
             foreach ($row as $c => $cell) {
                 if (is_string($cell) && is_numeric($cell)) {
-                    $dataRows[$r][$c] = str_contains($cell, '.') ? (float) $cell : (int) $cell;
+                    // PHP's own numeric-string juggling, not a dot test. `(int)` CLAMPS at
+                    // PHP_INT_MAX, so "1e21" became 9223372036854775807, and the dot
+                    // test sent "2e-3" down the (int) branch where it became 0. `+ 0`
+                    // yields int for integral in-range strings and float otherwise --
+                    // which is what the Node port's Number() does.
+                    $dataRows[$r][$c] = $cell + 0;
                 }
             }
         }

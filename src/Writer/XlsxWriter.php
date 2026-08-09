@@ -245,9 +245,17 @@ final class XlsxWriter
             return "<c r=\"{$ref}\"{$sAttr}/>";
         }
 
-        $v = is_float($cell->value)
-            ? rtrim(rtrim(number_format($cell->value, 14, '.', ''), '0'), '.')
-            : (string) $cell->value;
+        $value = $cell->value;
+
+        // NAN/INF have no `<v>` representation -- "NAN" in a cell is a corrupt
+        // sheet, not a big number. The Node port makes the same substitution.
+        if (is_float($value) && ! is_finite($value)) {
+            $value = 0;
+        }
+
+        $v = is_float($value)
+            ? rtrim(rtrim(number_format($value, 14, '.', ''), '0'), '.')
+            : (string) $value;
         if ($v === '') $v = '0';
         return "<c r=\"{$ref}\"{$sAttr}><v>{$v}</v></c>";
     }

@@ -2,6 +2,33 @@
 
 All notable changes to `particle-academy/holy-sheet` will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **A checksum test pinning `skills/holy-sheet.schema.json` to its Node twin.**
+  The schema is a byte-identical copy of
+  `holy-sheet-js/src/holy-sheet.schema.json`, kept in sync by remembering to
+  edit both. Nothing checked that — and this is the file handed to an LLM as
+  the tool definition, so a one-sided edit did not fail a build, it changed what
+  an agent was told the API is on one backend and not the other.
+
+  To change the schema: edit both copies, run either suite, paste the new hash
+  into both tests. The hash is taken over **newline-normalised** content,
+  because the file is stored LF and lands CRLF on a Windows checkout.
+
+### Fixed
+
+- **This changelog was out of order and `[Unreleased]` was buried in the middle
+  of it.** File order ran 2.0.1, 1.3.0, 1.2.0, 1.1.0, 1.0.1, `[Unreleased]`,
+  2.0.0 — so `2.0.0` sat *below* the 1.x entries and a reader scanning from the
+  top saw 2.0.1 followed by 1.3.0, with every reason to conclude the 2.0.0
+  release was never documented. Anyone accumulating into `[Unreleased]` was also
+  writing into the middle of the file.
+
+  Reordered newest-first per Keep a Changelog, with `[Unreleased]` at the top.
+  No entry text changed — verified as an exact multiset of the original lines.
+
 ## [2.0.1] — 2026-08-09
 
 ### Fixed
@@ -35,6 +62,34 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 `2.0.0` has no entry in this file. It predates the changelog rule being enforced
 here, and the PHP repos have no publish-time gate to catch that the way the npm
 ones do. Left as-is rather than reconstructed after the fact.
+
+## [2.0.0] — 2026-08-07
+
+### Changed
+
+- **BREAKING — PHP 8.2 is no longer supported.** `require.php` moves from `^8.2` to `^8.4`.
+
+  **What you must do:** on PHP 8.4 or newer, nothing. On 8.2, either upgrade PHP first or stay on the previous release — it keeps working and is unaffected by this.
+
+- CI now tests PHP 8.4 only, instead of a matrix spanning versions this package no longer claims to support. A matrix that tests what the manifest forbids is worse than none — it reports green for a combination nobody can install.
+
+### Why
+
+These are the kit 0.5 platform floors. The suite was split across PHP 8.2 and 8.3 with the framework spanning 11–13, so no package could rely on anything newer than its weakest sibling. Every PHP package in the kit takes the same floors at once, so a consumer never has to resolve a mix.
+
+This package is past 1.0, so a floor raise takes a **major**. Most of the suite is pre-1.0 and lands the identical change in a minor — that is semver, not a difference in how much changed. **No API changed, nothing was removed, nothing was renamed.**
+
+
+### Added
+- Initial package scaffold:
+  - `composer.json` with PHP 8.2+ floor and Laravel 10–13 dev/integration support
+  - `HolySheet\HolySheet` core class (framework-agnostic)
+  - `HolySheet\Laravel\HolySheetServiceProvider` (auto-discovered)
+  - `HolySheet\Laravel\Facades\HolySheet` facade
+  - `config/holy-sheet.php` with publishable defaults
+  - Pest test harness — `tests/Unit/` for pure PHP, `tests/Laravel/` for service-provider integration via Orchestra Testbench
+  - GitHub Actions matrix CI (PHP 8.2/8.3/8.4 × Laravel 10/11/12)
+  - README + CHANGELOG
 
 ## [1.3.0] — 2026-06-07
 
@@ -122,33 +177,3 @@ Adapter cleanup + comprehensive docs + runnable demo. No breaking changes if you
 - New: `tests/Laravel/FacadeTest.php` — every facade method via the real Laravel container/facade chain. Confirms singleton resolution by both class and `'holy-sheet'` alias.
 - Removed: controller test (no controller in package anymore).
 - 33 Pest tests passing.
-
-## [Unreleased]
-
-## [2.0.0] — 2026-08-07
-
-### Changed
-
-- **BREAKING — PHP 8.2 is no longer supported.** `require.php` moves from `^8.2` to `^8.4`.
-
-  **What you must do:** on PHP 8.4 or newer, nothing. On 8.2, either upgrade PHP first or stay on the previous release — it keeps working and is unaffected by this.
-
-- CI now tests PHP 8.4 only, instead of a matrix spanning versions this package no longer claims to support. A matrix that tests what the manifest forbids is worse than none — it reports green for a combination nobody can install.
-
-### Why
-
-These are the kit 0.5 platform floors. The suite was split across PHP 8.2 and 8.3 with the framework spanning 11–13, so no package could rely on anything newer than its weakest sibling. Every PHP package in the kit takes the same floors at once, so a consumer never has to resolve a mix.
-
-This package is past 1.0, so a floor raise takes a **major**. Most of the suite is pre-1.0 and lands the identical change in a minor — that is semver, not a difference in how much changed. **No API changed, nothing was removed, nothing was renamed.**
-
-
-### Added
-- Initial package scaffold:
-  - `composer.json` with PHP 8.2+ floor and Laravel 10–13 dev/integration support
-  - `HolySheet\HolySheet` core class (framework-agnostic)
-  - `HolySheet\Laravel\HolySheetServiceProvider` (auto-discovered)
-  - `HolySheet\Laravel\Facades\HolySheet` facade
-  - `config/holy-sheet.php` with publishable defaults
-  - Pest test harness — `tests/Unit/` for pure PHP, `tests/Laravel/` for service-provider integration via Orchestra Testbench
-  - GitHub Actions matrix CI (PHP 8.2/8.3/8.4 × Laravel 10/11/12)
-  - README + CHANGELOG

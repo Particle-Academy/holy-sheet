@@ -48,7 +48,8 @@
     },
     "scripts": {
         "test": "pest",
-        "test-coverage": "pest --coverage"
+        "test-coverage": "pest --coverage",
+        "verify:published": "bash verify/install-check.sh"
     },
     "extra": {
         "laravel": {

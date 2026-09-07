@@ -6,6 +6,36 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ### Added
 
+- **`composer verify:published` — a check that the PUBLISHED package works, not
+  just the source.** The suite proves the code is right; it cannot prove the
+  package is, because it loads `src/` through the dev autoloader with every
+  `require-dev` package installed. A consumer gets a zip wired up by the
+  `autoload` map with none of them. Those two paths usually agree, and nothing
+  checked that they did.
+
+  `verify/published.php` ships **inside** the package and boots through the
+  consumer's own autoloader — a checker that reads the repo is testing the repo
+  again. `verify/install-check.sh` builds the install the way Packagist does:
+  `git archive HEAD` so only committed files are seen and `export-ignore` is
+  honoured, `--no-dev`, and a non-symlinked path repo so it is a copy rather
+  than an alias.
+
+  **Demonstrated rather than asserted.** With `/skills export-ignore` added to
+  `.gitattributes` — a realistic change someone would make to slim the tarball —
+  `composer test` passes 101 tests and 284 assertions, exit 0. `composer
+  verify:published` exits 1 and names the file and the consequence:
+  `toolDefinition()` silently returns `[]`, so an agent is handed an empty tool
+  definition with no exception and no warning.
+
+  It also caught two things about itself on the way: a class name inferred from
+  a directory rather than read from source, and an assertion about
+  `toolDefinition()`'s shape written without opening the file it reads. Both
+  were fixed before this landed — a verification script that reports defects the
+  package does not have trains its reader to discount the one real finding later
+  on.
+
+### Added
+
 - **A checksum test pinning `skills/holy-sheet.schema.json` to its Node twin.**
   The schema is a byte-identical copy of
   `holy-sheet-js/src/holy-sheet.schema.json`, kept in sync by remembering to

@@ -28,6 +28,32 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PKG_NAME="$(php -r 'echo json_decode(file_get_contents($argv[1]))->name;' "$REPO_ROOT/composer.json")"
 WORK="$(mktemp -d)"
 
+# Composer is not always a binary on PATH. On Windows it is commonly a .bat
+# shim, and an interactive shell may only know it through a profile alias that
+# a script like this one does not inherit — which surfaces as the thoroughly
+# misleading "composer: command not found" on a machine where composer plainly
+# works. Resolve it explicitly instead.
+COMPOSER_BIN=""
+for candidate in composer composer.bat composer.phar; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    COMPOSER_BIN="$(command -v "$candidate")"
+    break
+  fi
+done
+
+if [ -z "$COMPOSER_BIN" ]; then
+  echo "FAIL: could not find composer (tried composer, composer.bat, composer.phar)." >&2
+  echo "      Set COMPOSER_BIN, or put composer on PATH." >&2
+  exit 1
+fi
+
+composer_run() {
+  case "$COMPOSER_BIN" in
+    *.phar) php "$COMPOSER_BIN" "$@" ;;
+    *)      "$COMPOSER_BIN" "$@" ;;
+  esac
+}
+
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
@@ -66,7 +92,7 @@ cat > "$WORK/consumer/composer.json" <<JSON
 }
 JSON
 
-( cd "$WORK/consumer" && composer install --no-dev --no-interaction --quiet )
+( cd "$WORK/consumer" && composer_run install --no-dev --no-interaction --quiet )
 
 INSTALLED="$WORK/consumer/vendor/$PKG_NAME"
 if [ ! -d "$INSTALLED" ]; then

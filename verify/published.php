@@ -109,8 +109,9 @@ $publicClasses = [
     \HolySheet\HolySheet::class,
     \HolySheet\Writer\XlsxWriter::class,
     \HolySheet\Reader\XlsxReader::class,
-    \HolySheet\Schema\WorkbookSchema::class,
-    \HolySheet\Workbook\Workbook::class,
+    \HolySheet\Schema\Validator::class,
+    \HolySheet\Workbook\Cell::class,
+    \HolySheet\Toolkit\Toolkit::class,
 ];
 
 foreach ($publicClasses as $class) {
@@ -158,10 +159,24 @@ check('reads its own output back', function () use ($tmp) {
     return is_array($described) && $described !== [] ?: 'describe() returned nothing for a file it just wrote';
 });
 
-check('emits a tool definition an agent can consume', function () {
+check('ships the schema file toolDefinition() reads', function () {
+    // This one is about PACKAGING, not code. `toolDefinition()` reads
+    // `<package-root>/skills/holy-sheet.schema.json` and returns [] when the
+    // file is absent — so a packaging change that stops shipping `skills/`
+    // (an export-ignore, a `files` allow-list) turns the tool definition into
+    // an empty array SILENTLY. No exception, no warning, and every unit test
+    // still passes because the file is right there in the repo.
+    //
+    // It returns a JSON Schema, not an Anthropic tool definition, so `name` is
+    // the wrong key to look for — asserting it cost this script a false alarm
+    // before the shape was actually read.
     $definition = \HolySheet\Agent::toolDefinition();
 
-    return isset($definition['name']) ?: 'toolDefinition() has no name key';
+    if ($definition === []) {
+        return 'toolDefinition() returned [] — skills/holy-sheet.schema.json did not ship with the package';
+    }
+
+    return isset($definition['properties']) ?: 'the shipped schema file has no properties key';
 });
 
 if (file_exists($tmp)) {

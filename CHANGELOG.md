@@ -4,32 +4,7 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
-### Fixed
-
-- **A sheet with BOTH a table and explicit cells no longer discards the table.**
-  `Normalizer::normalizeSheet()` returned the moment `cells` was set, silently
-  throwing away `columns`, `rows`, `totals` and `theme`. A four-row report with
-  one styled title cell wrote a **one-cell workbook**.
-
-  It failed in the quietest possible way: `Agent::validate()` reported no
-  errors, because `Validator::validateSheet()` says in as many words that a
-  sheet may carry "columns + rows OR cells (sparse map) **OR both**". The
-  validator permitted the combination and the writer dropped half of it, so the
-  file opened cleanly in Excel and was simply missing the report.
-
-  This blocked the most ordinary premium layout there is — a styled band plus a
-  formatted table on one sheet — which is how it was found.
-
-  **What you must do: nothing.** A sheet that used only one of the two shapes
-  behaves exactly as before. Explicit cells now win at their address, and their
-  format is MERGED over whatever the table put there, so a cell asking only for
-  `bold` keeps the column's currency format and the theme's banding instead of
-  dropping to bare.
-
-- **A `comment` given as a plain string is no longer dropped.** Only the object
-  form (`['text' => '...']`) was read; `'comment' => 'Reviewed by finance'` was
-  accepted by the validator, normalized to `null`, and lost with no error. Both
-  forms now work.
+## [2.1.0] — 2026-09-10
 
 ### Added
 
@@ -75,6 +50,31 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
   because the file is stored LF and lands CRLF on a Windows checkout.
 
 ### Fixed
+
+- **A sheet with BOTH a table and explicit cells no longer discards the table.**
+  `Normalizer::normalizeSheet()` returned the moment `cells` was set, silently
+  throwing away `columns`, `rows`, `totals` and `theme`. A four-row report with
+  one styled title cell wrote a **one-cell workbook**.
+
+  It failed in the quietest possible way: `Agent::validate()` reported no
+  errors, because `Validator::validateSheet()` says in as many words that a
+  sheet may carry "columns + rows OR cells (sparse map) **OR both**". The
+  validator permitted the combination and the writer dropped half of it, so the
+  file opened cleanly in Excel and was simply missing the report.
+
+  This blocked the most ordinary premium layout there is — a styled band plus a
+  formatted table on one sheet — which is how it was found.
+
+  **What you must do: nothing.** A sheet that used only one of the two shapes
+  behaves exactly as before. Explicit cells now win at their address, and their
+  format is MERGED over whatever the table put there, so a cell asking only for
+  `bold` keeps the column's currency format and the theme's banding instead of
+  dropping to bare.
+
+- **A `comment` given as a plain string is no longer dropped.** Only the object
+  form (`['text' => '...']`) was read; `'comment' => 'Reviewed by finance'` was
+  accepted by the validator, normalized to `null`, and lost with no error. Both
+  forms now work.
 
 - **This changelog was out of order and `[Unreleased]` was buried in the middle
   of it.** File order ran 2.0.1, 1.3.0, 1.2.0, 1.1.0, 1.0.1, `[Unreleased]`,

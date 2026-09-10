@@ -31,17 +31,17 @@ final class Normalizer
     {
         $name = (string) $sheet['name'];
 
-        if (isset($sheet['cells'])) {
-            return new Sheet(
-                name: $name,
-                cells: $this->normalizeCellMap($sheet['cells']),
-                mergedRegions: $this->normalizeMerges($sheet['mergedRegions'] ?? []),
-                columnWidths: $this->normalizeColumnWidths($sheet['columnWidths'] ?? []),
-                frozenRows: (int) ($sheet['frozenRows'] ?? 0),
-                frozenCols: (int) ($sheet['frozenCols'] ?? 0),
-            );
-        }
-
+        // NOTE: there is no separate "cells-only" path. A sheet with no columns
+        // and no rows simply builds an empty table below and then takes the
+        // overlay, which is the same code the combined case runs.
+        //
+        // It USED to return here the moment `cells` was set, and that early
+        // return silently discarded `columns`, `rows`, `totals` and `theme` — a
+        // four-row table with one styled title cell wrote a one-cell workbook,
+        // and `Agent::validate()` returned no errors, because the validator
+        // (`Validator::validateSheet`) explicitly permits both together. The two
+        // halves of the contract disagreed and the writer was the one that was
+        // wrong.
         $cells = [];
         $columns = $sheet['columns'] ?? [];
         $rows = $sheet['rows'] ?? [];
@@ -106,6 +106,24 @@ final class Normalizer
             }
         }
 
+        // The overlay. Explicit cells win at their address, because naming an
+        // address is a more specific statement than "row 3 of the table".
+        //
+        // A format is MERGED rather than swapped, so a cell that only sets
+        // `bold` keeps the theme's banding and the column's currency format
+        // instead of dropping to bare. Set a field to override it; omit it to
+        // inherit. (`mergeWith` takes the overlay as the argument — the caller's
+        // value wins field by field.)
+        if (isset($sheet['cells']) && is_array($sheet['cells'])) {
+            foreach ($this->normalizeCellMap($sheet['cells']) as $address => $cell) {
+                $beneath = $cells[$address] ?? null;
+
+                $cells[$address] = $beneath?->format !== null
+                    ? $cell->withFormat($beneath->format->mergeWith($cell->format))
+                    : $cell;
+            }
+        }
+
         return new Sheet(
             name: $name,
             cells: $cells,
@@ -139,13 +157,19 @@ final class Normalizer
             $format = isset($cellData['format']) && is_array($cellData['format'])
                 ? CellFormat::fromArray($cellData['format'])
                 : null;
-            $comment = isset($cellData['comment']) && is_array($cellData['comment'])
-                ? new CellComment(
+            // `comment` takes either a string or an object. The string form was
+            // accepted by the validator and dropped here, so a note written the
+            // obvious way vanished with no error — the same silent-drop shape as
+            // the discarded table above.
+            $comment = match (true) {
+                is_array($cellData['comment'] ?? null) => new CellComment(
                     text: (string) ($cellData['comment']['text'] ?? ''),
                     author: $cellData['comment']['author'] ?? null,
                     color: $cellData['comment']['color'] ?? null,
-                )
-                : null;
+                ),
+                is_string($cellData['comment'] ?? null) => new CellComment(text: $cellData['comment']),
+                default => null,
+            };
 
             $rawValue = $cellData['value'] ?? null;
             $cells[$address] = new Cell(

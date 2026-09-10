@@ -4,6 +4,34 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **The tool schema announced its own shipped features as unreleased.**
+  `skills/holy-sheet.schema.json` is the file handed to an LLM as the tool
+  definition — the entire contract an agent sees — and every formatting field
+  in it carried a future-tense description: `theme` "Lands in 0.3.",
+  `frozenRows` "Lands in 0.5.", `mergedRegions` "Lands in 0.5.", `totals`
+  "Lands in 0.7.", `CellFormat` "Per-cell format. Lands in 0.3.", under a
+  heading declaring "v0.2.0 supports scalar values, formulas (cached), and
+  multiple sheets. Styles, formats, comments, merges land in subsequent
+  minors."
+
+  The package was on **2.1.1**. All of it had shipped, some of it a long time
+  ago. Nothing caught it because every test calls the writer directly and none
+  of them reads the document an agent is given.
+
+  **In fairness to the schema: measured A/B runs showed this did NOT stop the
+  current model using the formatting** — four runs on the old text used typed
+  columns and frozen panes 4/4. It is fixed because it was false, not because
+  it was proven costly. Descriptions now say what each field does and when to
+  reach for it.
+
+  `SchemaDescribesTheShippedPackageTest` fails if the contract ever again tells
+  an agent a shipped feature is unreleased, and writes a workbook using every
+  field it describes — so fixing the prose can never drift from the code.
+
+
+
 ## [2.1.1] — 2026-09-10
 
 ### Fixed

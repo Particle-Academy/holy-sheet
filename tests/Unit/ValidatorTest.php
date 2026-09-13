@@ -50,3 +50,39 @@ it('throws SchemaException on assert with structured errors', function () {
     expect(fn () => Agent::write([], '/tmp/should-not-be-written.xlsx'))
         ->toThrow(SchemaException::class);
 });
+
+/*
+ * A sheet with no cells describes as `cells: []`. An empty PHP array is both an
+ * empty list and an empty map, and the validator read it as a list, so
+ * describe() -> write() failed on any workbook with an empty sheet, the round
+ * trip the read path documents.
+ */
+it('accepts an empty cells map, which is how describe() reports an empty sheet', function () {
+    expect(Agent::validate(['sheets' => [['name' => 'Empty', 'cells' => []]]]))->toBe([]);
+});
+
+it('still flags cells given as a non-empty list', function () {
+    $errors = Agent::validate(['sheets' => [['name' => 'Bad', 'cells' => [['value' => 1]]]]]);
+    expect($errors)->toHaveCount(1)
+        ->and($errors[0]['path'])->toBe('sheets[0].cells');
+});
+
+it('writes back a described workbook that has an empty sheet', function () {
+    $source = tempnam(sys_get_temp_dir(), 'holy_empty_').'.xlsx';
+    $copy = $source.'.copy.xlsx';
+    Agent::write(['sheets' => [
+        ['name' => 'Data', 'columns' => [['header' => 'A']], 'rows' => [[1]]],
+        ['name' => 'Empty', 'cells' => []],
+    ]], $source);
+
+    try {
+        $described = Agent::describe($source);
+        expect($described['sheets'][1])->toBe(['name' => 'Empty', 'cells' => []]);
+
+        Agent::write($described, $copy);
+        expect(Agent::describe($copy))->toBe($described);
+    } finally {
+        @unlink($source);
+        @unlink($copy);
+    }
+});

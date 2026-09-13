@@ -138,7 +138,9 @@ final class Validator
         }
 
         if (isset($sheet['cells'])) {
-            if (!is_array($sheet['cells']) || array_is_list($sheet['cells'])) {
+            // `[]` is an empty map too: it is how describe() reports a sheet with
+            // no cells, so rejecting it broke describe() -> write().
+            if (!is_array($sheet['cells']) || ($sheet['cells'] !== [] && array_is_list($sheet['cells']))) {
                 $errors[] = $this->error("{$path}.cells", 'object keyed by A1 address', $this->typeOf($sheet['cells']), $sheet['cells'],
                     'Cells must be an object/map keyed by A1 references like "A1", "B2".');
             }

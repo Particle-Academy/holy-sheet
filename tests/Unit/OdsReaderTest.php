@@ -188,11 +188,8 @@ it('describes the same workbook the same way whether it was saved as xlsx or ods
 it('returns a schema that writes straight back out', function () {
     $schema = Agent::describe(ods_fixture('workbook.ods'));
 
-    // The empty sheet is left out, and not because of ods: an empty sheet
-    // describes as `cells: []` in xlsx too, and the validator rejects an empty
-    // PHP array as "not a map". That is a defect in the existing read/write
-    // contract, reported separately rather than papered over here.
-    unset($schema['sheets'][4]);
+    // The empty sheet stays in: it describes as `cells: []`, which the validator
+    // used to reject as "not a map". See ValidatorTest.
 
     expect(Agent::validate($schema))->toBe([]);
 

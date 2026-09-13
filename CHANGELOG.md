@@ -76,7 +76,7 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
   an agent a shipped feature is unreleased, and writes a workbook using every
   field it describes — so fixing the prose can never drift from the code.
 
-
+- **`describe()` then `write()` works on a workbook with an empty sheet.** An empty sheet describes as `cells: []`, and the validator read an empty PHP array as a list and rejected it as "not a map", so the read path's documented round trip failed for any workbook containing one, xlsx or ods. An empty `cells` is now accepted; a non-empty list is still an error. Nothing to do.
 
 ## [2.1.1] — 2026-09-10
 

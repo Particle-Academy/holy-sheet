@@ -45,9 +45,10 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 - **A file `describe()` cannot read now throws `UnsupportedFormatException`
   instead of a bare `RuntimeException`.** It extends `RuntimeException`, so
-  **a `catch (RuntimeException $e)` keeps working: do nothing.** Only code that
-  matched the old message text (`cannot open … as a zip archive`, `missing
-  xl/workbook.xml`) sees a different message for those cases.
+  **a `catch (RuntimeException $e)` keeps working: do nothing.** The message
+  for a file that is not a zip still says "zip archive"; only code matching
+  the rest of the old text (`cannot open …`, `missing xl/workbook.xml`) sees
+  different wording.
 
 ### Fixed
 

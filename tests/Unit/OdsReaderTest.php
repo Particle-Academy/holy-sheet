@@ -488,7 +488,9 @@ it('refuses a file that is not a zip at all, and the exception is still a Runtim
     file_put_contents($path, "a,b\n1,2\n");
 
     try {
-        expect(fn () => Agent::describe($path))->toThrow(UnsupportedFormatException::class)
+        // "zip archive" is the phrase the old RuntimeException carried; kept for
+        // anyone matching on it.
+        expect(fn () => Agent::describe($path))->toThrow(UnsupportedFormatException::class, 'zip archive')
             ->and(is_subclass_of(UnsupportedFormatException::class, RuntimeException::class))->toBeTrue();
     } finally {
         @unlink($path);

@@ -29,7 +29,7 @@ final class UnsupportedFormatException extends RuntimeException
     public static function notAZip(string $path): self
     {
         return new self(
-            "[holy-sheet] cannot read {$path}: it is not a zip package, and xlsx and ods both are",
+            "[holy-sheet] cannot read {$path}: it is not a zip archive, and xlsx and ods both are",
             $path,
         );
     }

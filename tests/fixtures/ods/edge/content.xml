@@ -104,6 +104,10 @@
             <office:annotation><dc:creator>Ann</dc:creator><text:p>only a <text:span>note</text:span></text:p></office:annotation>
           </table:table-cell>
           <table:table-cell office:value-type="string"/>
+          <!-- The office namespace under another prefix, and a decoy namespace
+               reusing its local names: matched by URI this is the number 42;
+               matched by local name it is an empty string. -->
+          <table:table-cell xmlns:o="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:decoy="urn:example:decoy" o:value-type="float" o:value="42" decoy:value-type="string" decoy:value="nope"/>
         </table:table-row>
       </table:table>
 

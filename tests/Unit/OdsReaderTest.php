@@ -282,7 +282,7 @@ it('resolves styles through parents, row and column defaults, and ignores what d
     ]);
 });
 
-it('collapses white space the way ODF defines it, and skips comments in a paragraph', function () {
+it('collapses white space the way ODF defines it, skips comments in a paragraph, and matches namespaces by URI', function () {
     $cells = Agent::describe(ods_fixture('edge.ods'))['sheets'][1]['cells'];
 
     expect($cells)->toBe([
@@ -296,6 +296,9 @@ it('collapses white space the way ODF defines it, and skips comments in a paragr
         // F1 is an untyped cell with an empty paragraph: nothing.
         'G1' => ['value' => null, 'comment' => ['text' => 'only a note', 'author' => 'Ann']],
         'H1' => ['value' => ''],
+        // office: under the prefix "o", beside a decoy namespace reusing the
+        // same local names. By URI it is 42; by local name it would be ''.
+        'I1' => ['value' => 42],
     ]);
 });
 

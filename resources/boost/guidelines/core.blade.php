@@ -8,7 +8,7 @@
 - **Agent-shaped API**: `HolySheet\Agent` is a single static class with `validate`, `write`, `toBytes`, `validateAndRepair`, `describe`, `fromArray`, `fromCsv`, `lint`, and `toolDefinition`. No DI container required.
 - **JSON Schema export**: `Agent::toolDefinition()` returns a JSON Schema describing the expected `$schema` shape — feed it directly into LLM tool registration.
 - **Validate-then-write semantics**: Every error is a structured array with `path`, `expected`, `got`, `value`, `hint` — easy for agents to feed back into their own next emission.
-- **CSV import + round-trip**: `Agent::fromCsv($csvOrPath)` lifts a CSV string or path into a Holy Sheet schema; `Agent::describe($path)` reads an existing xlsx back into the same shape.
+- **CSV import + round-trip**: `Agent::fromCsv($csvOrPath)` lifts a CSV string or path into a Holy Sheet schema; `Agent::describe($path)` reads an existing xlsx or ods back into the same shape.
 - **Real xlsx writer**: Writes proper Office Open XML — opens cleanly in Excel / Numbers / Google Sheets / LibreOffice Calc. No external office binaries; the writer is pure PHP.
 - **Optional Laravel adapter**: Auto-discovered `HolySheetServiceProvider` registers a `holy-sheet` container alias and config publishing — but the core works fine without Laravel.
 
@@ -22,7 +22,7 @@ The package is intentionally thin. Everything an agent (or your app) needs lives
 - `HolySheet\Schema\Normalizer` — canonicalizes a schema (fills defaults, coerces shorthand)
 - `HolySheet\Schema\Repairer` — heuristic repairs (used by `Agent::validateAndRepair`)
 - `HolySheet\Writer\XlsxWriter` — low-level xlsx writer (Agent::write goes through this)
-- `HolySheet\Reader\XlsxReader` — low-level xlsx reader (Agent::describe goes through this)
+- `HolySheet\Reader\XlsxReader` / `HolySheet\Reader\OdsReader` — low-level readers; `Agent::describe` picks one by the file's contents
 
 ### Quick start (Agent surface)
 

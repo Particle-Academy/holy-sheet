@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace HolySheet;
 
+use HolySheet\Exceptions\UnsupportedFormatException;
 use HolySheet\Helpers\ArrayBuilder;
 use HolySheet\Helpers\CsvBuilder;
+use HolySheet\Reader\FormatSniffer;
+use HolySheet\Reader\OdsReader;
 use HolySheet\Reader\XlsxReader;
 use HolySheet\Schema\DumpOptions;
 use HolySheet\Schema\Dumper;
@@ -94,19 +97,26 @@ final class Agent
     }
 
     /**
-     * Round-trip an existing xlsx file back to a Holy Sheet schema.
-     * Lossy fields (themes, foreign custom number formats) are documented
-     * in docs/ReadPath.md; the returned schema is feed-it-back-to-write
-     * compatible.
+     * Read an existing spreadsheet back to a Holy Sheet schema: an xlsx
+     * workbook or an OpenDocument spreadsheet (.ods), told apart by content,
+     * never by extension, and described to the same schema. Lossy fields
+     * (themes, foreign custom number formats, what ODS does not map) are
+     * documented in docs/ReadPath.md; the returned schema is
+     * feed-it-back-to-write compatible.
      *
      * @return array<string,mixed>
+     *
+     * @throws UnsupportedFormatException when the file is neither
      */
     public static function describe(string $path): array
     {
         if (!is_file($path)) {
             return ['error' => 'not_found', 'path' => $path];
         }
-        return (new XlsxReader())->describe($path);
+        return match (FormatSniffer::sniff($path)) {
+            FormatSniffer::ODS => (new OdsReader())->describe($path),
+            FormatSniffer::XLSX => (new XlsxReader())->describe($path),
+        };
     }
 
     /**

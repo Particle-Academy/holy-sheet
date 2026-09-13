@@ -39,8 +39,8 @@ are out of scope.
    `write_xlsx` again. **Never stop after one failure** — the self-correction loop is
    the point. A successful write returns the workbook id, sheet count, and byte size.
 
-Use **`describe_file`** only to read an existing `.xlsx` file on disk that this
-workbook did not author.
+Use **`describe_file`** only to read an existing `.xlsx` or `.ods` file on disk that
+this workbook did not author.
 
 ## Principles
 

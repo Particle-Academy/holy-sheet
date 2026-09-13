@@ -52,7 +52,7 @@ final class NumFmtParser
     ];
 
     /** Currency symbol → ISO code lookup, mirroring NumFmtBuilder::currencySymbol(). */
-    private const SYMBOL_TO_ISO = [
+    public const SYMBOL_TO_ISO = [
         '$' => 'USD',
         '€' => 'EUR',
         '£' => 'GBP',

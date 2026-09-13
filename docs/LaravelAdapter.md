@@ -32,7 +32,7 @@ use HolySheet\Laravel\Facades\HolySheet;
 | `HolySheet::write(array $schema, string $path)` | `['path', 'bytes', 'sheets']` | Write to disk. Throws `SchemaException` on validation failure. |
 | `HolySheet::toBytes(array $schema)` | `string` | Raw xlsx bytes for streaming/queue/S3. |
 | `HolySheet::toolDefinition()` | `array` | JSON Schema for agent tool wiring. |
-| `HolySheet::describe(string $path)` | `array` | (1.1+) Round-trip an xlsx back to schema. |
+| `HolySheet::describe(string $path)` | `array` | (1.1+) Round-trip an xlsx back to schema. (2.2+) An ods too, to the same schema. |
 | `HolySheet::getVersion()` | `string` | Package version. |
 
 The facade resolves to a singleton bound by the service provider — safe across queue workers, scheduler, listeners, controllers.

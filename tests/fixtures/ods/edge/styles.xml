@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Common styles for edge.ods. Hand-authored; see ../README.md. -->
+<office:document-styles
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+    xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+    xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+    office:version="1.3">
+  <office:styles>
+    <style:default-style style:family="table-cell">
+      <style:text-properties fo:font-size="10pt"/>
+    </style:default-style>
+    <!-- Same name, other family: must not be taken for the cell style. -->
+    <style:style style:name="Default" style:family="graphic">
+      <style:text-properties fo:font-size="30pt" fo:font-weight="bold"/>
+    </style:style>
+    <style:style style:name="Default" style:family="table-cell"/>
+    <style:style style:name="Heading" style:family="table-cell" style:parent-style-name="Default">
+      <style:table-cell-properties fo:border="0.06pt solid #ff0000" fo:background-color="#123456"/>
+      <style:text-properties fo:font-weight="600" fo:color="#00ff00" fo:font-size="18pt"/>
+    </style:style>
+    <number:number-style style:name="NGEN">
+      <number:number number:min-integer-digits="1"/>
+    </number:number-style>
+    <number:number-style style:name="NSCI">
+      <number:scientific-number number:decimal-places="2" number:min-integer-digits="1" number:min-exponent-digits="2"/>
+    </number:number-style>
+    <number:text-style style:name="NTXT">
+      <number:text-content/>
+    </number:text-style>
+    <number:currency-style style:name="NCHF">
+      <number:currency-symbol>CHF</number:currency-symbol>
+      <number:text> </number:text>
+      <number:number number:decimal-places="2" number:min-integer-digits="1"/>
+    </number:currency-style>
+    <number:number-style style:name="NGBP">
+      <number:text>£</number:text>
+      <number:number number:decimal-places="1" number:min-integer-digits="1"/>
+    </number:number-style>
+    <!-- "$"#,##0.00;-#,##0.00 : the negative part has no symbol, so only the
+         mapped positive part says this is currency. -->
+    <number:number-style style:name="NNEGP0" style:volatile="true">
+      <number:text>$</number:text>
+      <number:number number:decimal-places="2" number:min-integer-digits="1" number:grouping="true"/>
+    </number:number-style>
+    <number:number-style style:name="NNEG">
+      <number:text>-</number:text>
+      <number:number number:decimal-places="2" number:min-integer-digits="1" number:grouping="true"/>
+      <style:map style:condition="value() &gt;= 0" style:apply-style-name="NNEGP0"/>
+    </number:number-style>
+    <number:date-style style:name="NDT12">
+      <number:month/><number:text>/</number:text><number:day/><number:text> </number:text><number:hours/><number:am-pm/>
+    </number:date-style>
+    <number:date-style style:name="NDATE">
+      <number:year number:style="long"/><number:text>-</number:text><number:month number:style="long"/><number:text>-</number:text><number:day number:style="long"/>
+    </number:date-style>
+  </office:styles>
+</office:document-styles>

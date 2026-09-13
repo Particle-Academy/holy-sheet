@@ -354,7 +354,7 @@ $schema = HolySheet\Agent::describe('/tmp/in.xlsx');
 HolySheet\Agent::write($schema, '/tmp/out.xlsx');
 ```
 
-`describe()` returns the same shape `write()` consumes. Holy-Sheet-authored files round-trip without loss; foreign Excel files round-trip everything except themes (they bake into per-cell formats — equivalent, not identical) and obscure custom number-format codes (returned raw).
+`describe()` also reads an OpenDocument spreadsheet (`.ods`), to the same schema, so there is no branch on the file type. `describe()` returns the same shape `write()` consumes. Holy-Sheet-authored files round-trip without loss; foreign Excel files round-trip everything except themes (they bake into per-cell formats — equivalent, not identical) and obscure custom number-format codes (returned raw).
 
 ### Recover from imperfect schemas with `Agent::validateAndRepair()`
 

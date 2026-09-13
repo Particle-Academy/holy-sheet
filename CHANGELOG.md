@@ -4,6 +4,51 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-09-13
+
+### Added
+
+- **`Agent::describe()` reads OpenDocument spreadsheets (`.ods`) into the same
+  schema as `.xlsx`.** A Laravel host was keeping a second spreadsheet library
+  installed for one branch of one `match`: xlsx went through holy-sheet, ods
+  through something else with its own cell model and a converter to make its
+  output look like a holy-sheet schema. That branch can go. `describe()` picks
+  the reader from the file's CONTENTS (an OpenDocument package names itself in
+  its `mimetype` entry; an xlsx has `xl/workbook.xml`), never the extension, and
+  the Laravel facade and the `describe_file` tool get it for free.
+
+  Mapped: every value type, strings with several paragraphs and inline runs,
+  dates and times as UTC ISO strings, OpenFormula translated to A1 with its
+  cached result, repeated cells and rows (the million-row padding is skipped,
+  not expanded), merges, content in covered cells, comments with authors, cell
+  styles through parents and row / column defaults, data styles, and document
+  creator / created. Not mapped: frozen panes (view settings), column widths and
+  row heights, fonts and the other formatting `CellFormat` has no field for,
+  function-name translation, and flat `.fods` files. The full list is in
+  `docs/ReadPath.md`.
+
+  **Nothing to do to take it.** A `.xlsx` describes exactly as before; the
+  schema conversion both readers now share was moved out of `XlsxReader`
+  unchanged.
+
+  Tested against real LibreOffice output, not hand-built approximations: the
+  same workbook is written as xlsx by this package and converted to ods by
+  LibreOffice, and `OdsReaderTest` asserts the two describe to the same schema.
+  How every fixture was made is in `tests/fixtures/ods/README.md`.
+
+- **`HolySheet\Exceptions\UnsupportedFormatException`**, thrown by `describe()`
+  for a file that is neither format, with the declared `mimetype` when there is
+  one (an OpenDocument text file says so instead of failing somewhere inside the
+  xlsx reader).
+
+### Changed
+
+- **A file `describe()` cannot read now throws `UnsupportedFormatException`
+  instead of a bare `RuntimeException`.** It extends `RuntimeException`, so
+  **a `catch (RuntimeException $e)` keeps working: do nothing.** Only code that
+  matched the old message text (`cannot open … as a zip archive`, `missing
+  xl/workbook.xml`) sees a different message for those cases.
+
 ### Fixed
 
 - **The tool schema announced its own shipped features as unreleased.**

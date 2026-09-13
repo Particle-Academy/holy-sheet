@@ -84,6 +84,7 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 - ✅ Zero third-party runtime dependencies (uses PHP's built-in `ZipArchive`)
 - ✅ Structured validation errors with `path`, `expected`, `got`, `value`, `hint`
 - ✅ **Read path** (1.1+) — `Agent::describe(path)` round-trips an existing xlsx back to a Holy Sheet schema with full feature parity
+- ✅ **OpenDocument read** (2.2+) — `Agent::describe(path)` reads an `.ods` into the SAME schema, chosen by the file's contents rather than its extension, so a caller needs no second library and no branch. Anything else throws `UnsupportedFormatException` (a `RuntimeException`). What maps and what does not: [docs/ReadPath.md](docs/ReadPath.md#opendocument-spreadsheets-ods)
 - ✅ **Schema repair** (1.1+) — `Agent::validateAndRepair($schema)` applies conservative auto-fixes (singular `sheet` → `sheets`, stringified numerics, object-as-list, etc.)
 - ✅ **Schema builders** (1.1+) — `Agent::fromArray()`, `Agent::fromCsv()`, `HolySheet::fromQuery()` (Laravel) — typed schemas from rows / CSV / Eloquent with no hand-crafting
 - ✅ **Formula linter** (1.2+) — `Agent::lint($schema)` evaluates every formula and reports `#VALUE!` / `#REF!` / `#DIV/0!` / `#NAME?` / `#CIRC!` errors. Catches the LLM-classic header-row off-by-one (`B1*12` when B1 is "Annual" and B2 is the data) with a "Did you mean B2?" hint

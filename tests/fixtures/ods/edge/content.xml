@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  edge.ods, hand-authored and zipped by generate.php WITHOUT LibreOffice.
+
+  Everything here is valid OpenDocument that LibreOffice normalises away when it
+  saves (rows repeated with content, content in covered cells, grouped rows,
+  whitespace it would re-encode as text:s) or never writes itself (msoxl and
+  oooc formulas, a 3D range, offsets on dates, fractional seconds). It is the
+  fixture the Node and Python parity suites diff against the PHP reader, so the
+  constructs a real producer might write but LibreOffice does not are compared
+  on identical bytes in all three runtimes.
+-->
+<office:document-content
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+    xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+    xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+    xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+    xmlns:dc="http://purl.org/dc/elements/1.1/"
+    xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"
+    office:version="1.3">
+  <office:automatic-styles>
+    <style:style style:name="cInherit" style:family="table-cell" style:parent-style-name="Heading">
+      <style:table-cell-properties fo:border-left="none" fo:border-top="0.5pt solid"/>
+      <style:text-properties style:use-window-font-color="true" fo:font-style="oblique"/>
+    </style:style>
+    <style:style style:name="cValueAlign" style:family="table-cell" style:parent-style-name="Default">
+      <style:table-cell-properties style:text-align-source="value-type"/>
+      <style:paragraph-properties fo:text-align="center"/>
+    </style:style>
+    <style:style style:name="cStart" style:family="table-cell" style:parent-style-name="Default">
+      <style:paragraph-properties fo:text-align="start"/>
+    </style:style>
+    <style:style style:name="cRowDefault" style:family="table-cell" style:parent-style-name="Default">
+      <style:text-properties fo:font-style="italic"/>
+    </style:style>
+    <style:style style:name="cGen" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NGEN"/>
+    <style:style style:name="cSci" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NSCI"/>
+    <style:style style:name="cTxt" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NTXT"/>
+    <style:style style:name="cCHF" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NCHF"/>
+    <style:style style:name="cGBP" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NGBP"/>
+    <style:style style:name="cDT12" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NDT12"/>
+    <style:style style:name="cNeg" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NNEG"/>
+    <style:style style:name="cDateOnly" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NDATE"/>
+    <style:style style:name="cTransparent" style:family="table-cell" style:parent-style-name="Heading">
+      <style:table-cell-properties fo:background-color="transparent" fo:border="hidden"/>
+      <style:text-properties fo:font-weight="normal" fo:font-size="10pt"/>
+    </style:style>
+    <style:style style:name="cHalfPoint" style:family="table-cell" style:parent-style-name="Default">
+      <style:text-properties fo:font-size="12.5pt"/>
+    </style:style>
+    <style:style style:name="cPercentSize" style:family="table-cell" style:parent-style-name="Default">
+      <style:text-properties fo:font-size="120%"/>
+    </style:style>
+    <style:style style:name="cLoopA" style:family="table-cell" style:parent-style-name="cLoopB">
+      <style:text-properties fo:font-weight="bold"/>
+    </style:style>
+    <style:style style:name="cLoopB" style:family="table-cell" style:parent-style-name="cLoopA">
+      <style:text-properties fo:font-style="italic"/>
+    </style:style>
+  </office:automatic-styles>
+  <office:body>
+    <office:spreadsheet>
+
+      <table:table table:name="Styles">
+        <table:table-column table:default-cell-style-name="cStart"/>
+        <table:table-column table:number-columns-repeated="13" table:default-cell-style-name="Default"/>
+        <table:table-row>
+          <table:table-cell table:style-name="cInherit" office:value-type="string"><text:p>inherit</text:p></table:table-cell>
+          <table:table-cell table:style-name="cValueAlign" office:value-type="float" office:value="1"><text:p>1</text:p></table:table-cell>
+          <table:table-cell table:style-name="cStart" office:value-type="string"><text:p>start</text:p></table:table-cell>
+          <table:table-cell table:style-name="cGen" office:value-type="float" office:value="1234.5"><text:p>1234.5</text:p></table:table-cell>
+          <table:table-cell table:style-name="cSci" office:value-type="float" office:value="12345"><text:p>1.23E+04</text:p></table:table-cell>
+          <table:table-cell table:style-name="cTxt" office:value-type="string"><text:p>007</text:p></table:table-cell>
+          <table:table-cell table:style-name="cCHF" office:value-type="float" office:value="9.5"><text:p>CHF 9.50</text:p></table:table-cell>
+          <table:table-cell table:style-name="cGBP" office:value-type="float" office:value="3.25"><text:p>£3.3</text:p></table:table-cell>
+          <table:table-cell table:style-name="cDT12" office:value-type="date" office:date-value="2024-02-29T15:00:00"><text:p>2/29 3PM</text:p></table:table-cell>
+          <table:table-cell table:style-name="cTransparent" office:value-type="string"><text:p>clear</text:p></table:table-cell>
+          <table:table-cell table:style-name="cHalfPoint" office:value-type="float" office:value="2"><text:p>2</text:p></table:table-cell>
+          <table:table-cell table:style-name="cPercentSize" office:value-type="float" office:value="3"><text:p>3</text:p></table:table-cell>
+          <table:table-cell table:style-name="cLoopA" office:value-type="string"><text:p>loop</text:p></table:table-cell>
+          <table:table-cell table:style-name="cNeg" office:value-type="float" office:value="-5"><text:p>-5.00</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row table:default-cell-style-name="cRowDefault">
+          <table:table-cell office:value-type="string"><text:p>row default wins</text:p></table:table-cell>
+          <table:table-cell table:style-name="cStart" office:value-type="string"><text:p>cell style wins</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell office:value-type="string"><text:p>column default</text:p></table:table-cell>
+          <table:table-cell table:style-name="NoSuchStyle" office:value-type="string"><text:p>unknown style</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+
+      <table:table table:name="Text">
+        <table:table-row>
+          <table:table-cell office:value-type="string"><text:p>  leading   and  inner&#9;tabs&#10;newline </text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>a <text:s/> b<text:s text:c="3"/></text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:h>Heading</text:h><text:p>body <text:span>span <text:span>nested</text:span></text:span></text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>x<!-- a comment -->y<text:bookmark text:name="bm"/>z &#x263A; &amp; <![CDATA[<raw>]]></text:p></table:table-cell>
+          <table:table-cell office:value-type="string" office:string-value="stored"><text:p>shown</text:p></table:table-cell>
+          <table:table-cell><text:p/></table:table-cell>
+          <table:table-cell>
+            <office:annotation><dc:creator>Ann</dc:creator><text:p>only a <text:span>note</text:span></text:p></office:annotation>
+          </table:table-cell>
+          <table:table-cell office:value-type="string"/>
+        </table:table-row>
+      </table:table>
+
+      <table:table table:name="Formulas">
+        <table:table-row>
+          <table:table-cell table:formula="of:=SUM([Sheet1.A1:Sheet3.B2])" office:value-type="float" office:value="0"/>
+          <table:table-cell table:formula="of:=SUM([$'Q1 Data'.A1:$'Q4 Data'.A1])" office:value-type="float" office:value="1.5"/>
+          <table:table-cell table:formula="of:=[.#REF!]+1" office:value-type="string" office:string-value="" calcext:value-type="error"><text:p>#REF!</text:p></table:table-cell>
+          <table:table-cell table:formula="of:=SUM([.A:.A];[.1:.1])" office:value-type="float" office:value="12"/>
+          <table:table-cell table:formula="of:=IF([.A1]&gt;0;&quot;a;b|c&quot;;{1|2})" office:value-type="float" office:value="1"/>
+          <table:table-cell table:formula="of:=[$2024.A1]&amp;[$Sheet_1.A1]&amp;[$R1C1.A1]" office:value-type="string" office:string-value="x"/>
+          <table:table-cell table:formula="of:=NA()"/>
+          <table:table-cell table:formula="of:=[.A1]~[.B1]" office:value-type="float" office:value="0"/>
+          <table:table-cell table:formula="oooc:=SUM([.A1:.B1]; 2)" office:value-type="float" office:value="3"/>
+          <table:table-cell table:formula="msoxl:=SUM(A1:B1;2)" office:value-type="float" office:value="3"/>
+          <table:table-cell table:formula="of:=[&apos;file:///C:/x.ods&apos;#$Sheet1.A1]" office:value-type="float" office:value="4"/>
+          <table:table-cell table:formula="of:=FALSE()" office:value-type="float" office:value="0"/>
+        </table:table-row>
+      </table:table>
+
+      <table:table table:name="Structure">
+        <table:table-column table:number-columns-repeated="4"/>
+        <table:table-header-rows>
+          <table:table-row><table:table-cell office:value-type="string"><text:p>head</text:p></table:table-cell></table:table-row>
+        </table:table-header-rows>
+        <table:table-row-group>
+          <table:table-row table:number-rows-repeated="2">
+            <table:table-cell table:number-columns-repeated="2" office:value-type="float" office:value="4"/>
+            <table:table-cell table:number-columns-spanned="2"/>
+            <table:covered-table-cell office:value-type="string"><text:p>under</text:p></table:covered-table-cell>
+          </table:table-row>
+        </table:table-row-group>
+        <table:table-row table:number-rows-repeated="1048573">
+          <table:table-cell table:number-columns-repeated="16384"/>
+        </table:table-row>
+      </table:table>
+
+      <table:table table:name="Dates">
+        <table:table-row>
+          <table:table-cell office:value-type="time" office:time-value="-PT1H"/>
+          <table:table-cell office:value-type="date" office:date-value="2024-03-10T01:30:00-05:00"/>
+          <table:table-cell office:value-type="date" office:date-value="1900-01-01"/>
+          <table:table-cell office:value-type="date" office:date-value="2024-12-31T23:59:59.5"/>
+          <table:table-cell office:value-type="time" office:time-value="PT2.5S"/>
+          <table:table-cell table:style-name="cDateOnly" office:value-type="date" office:date-value="2024-05-05T18:00:00"/>
+          <table:table-cell office:value-type="currency" office:currency="JPY" office:value="1200"/>
+          <table:table-cell office:value-type="percentage" office:value="0.5"/>
+          <table:table-cell office:value-type="float" office:value="1.5E3"/>
+          <table:table-cell table:style-name="cCHF" office:value-type="currency" office:currency="EUR" office:value="7"/>
+          <table:table-cell office:value-type="date" office:date-value="not a date"/>
+          <table:table-cell table:formula="of:=[.A1]" office:value-type="time" office:time-value="P1DT6H"/>
+        </table:table-row>
+      </table:table>
+
+    </office:spreadsheet>
+  </office:body>
+</office:document-content>

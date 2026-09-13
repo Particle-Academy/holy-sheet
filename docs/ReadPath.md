@@ -2,6 +2,8 @@
 
 `Agent::describe(string $path): array` round-trips an xlsx file back to a Holy Sheet schema. The returned array can be fed straight back into `Agent::write()` — that's the contract.
 
+It reads an OpenDocument spreadsheet (`.ods`) too, into the same schema: see [OpenDocument spreadsheets](#opendocument-spreadsheets-ods).
+
 ```php
 use HolySheet\Agent;
 
@@ -17,7 +19,7 @@ use HolySheet\Laravel\Facades\HolySheet;
 $schema = HolySheet::describe(storage_path('app/exports/q4.xlsx'));
 ```
 
-Returns `['error' => 'not_found', 'path' => …]` if the file doesn't exist. Throws `RuntimeException` if the file isn't a valid zip / OOXML package.
+Returns `['error' => 'not_found', 'path' => …]` if the file doesn't exist. Throws `HolySheet\Exceptions\UnsupportedFormatException` if the file is neither an xlsx nor an ods (not a zip at all, or a zip of something else such as an OpenDocument text file; `$e->mimetype` says what it declared). That exception extends `RuntimeException`, which is what an unreadable file threw before 2.2, so an existing `catch (RuntimeException)` still catches it.
 
 ## Output shape
 
@@ -69,6 +71,37 @@ The returned schema is **cell-keyed** (not row-list-keyed) so round-tripping sty
 - **Custom number-format codes that don't match a recognized pattern** fall through. The reader recognizes every format code Holy Sheet's writer emits, plus the standard 50 built-in numFmtIds. Foreign codes outside that set return as raw `format` strings.
 - **Shared strings** — Excel may store strings in `xl/sharedStrings.xml`. The 1.1 reader returns shared-string indices with a `[shared:N]` placeholder; full sharedStrings expansion lands in 1.2.
 - **Charts, images, drawings, pivot tables** — not parsed (and not authored by Holy Sheet either).
+
+## OpenDocument spreadsheets (.ods)
+
+Since 2.2, `describe()` reads `.ods` into the same schema as `.xlsx`. The format is decided by the file's contents, never its name: an OpenDocument package declares itself in its `mimetype` entry (`application/vnd.oasis.opendocument.spreadsheet`, or the `-template` variant), and an xlsx has `xl/workbook.xml`.
+
+The same workbook saved both ways describes the same way. `tests/Unit/OdsReaderTest.php` asserts exactly that, on a workbook written by this package and converted to ods by LibreOffice.
+
+| Feature | ods |
+|---|---|
+| Numbers, percentages, currency, booleans | ✓ |
+| Strings, including several paragraphs (joined with `\n`), runs, links, `text:s` spaces, tabs, line breaks | ✓ |
+| Dates and datetimes, as ISO strings in UTC; times on the 1899-12-30 epoch, as xlsx shows them | ✓ |
+| Formulas, OpenFormula translated to A1 (`of:=SUM([.A1:.B2];[$'Other'.C3])` → `SUM(A1:B2,'Other'!C3)`), with `computedValue` | ✓ |
+| Repeated cells and rows | ✓ expanded only where they hold something; the padding rows and columns every producer writes are skipped |
+| Merged regions, and content inside a covered cell | ✓ |
+| Comments (text + author) | ✓ |
+| Bold / italic / font size / colour / background / four border colours / horizontal alignment | ✓ through parent styles, row and column default styles, and the document default |
+| Number / percentage / currency / date / datetime / text data styles | ✓ |
+| `meta:initial-creator` (or `dc:creator`) + `meta:creation-date` | ✓ as `creator` + `created` |
+| Frozen panes | ✗ view settings, not document content |
+| Column widths, row heights | ✗ stored for every column, whether or not anyone sized it |
+| Fonts, underline, wrapping, vertical alignment, border widths, conditional formats, validation, named ranges, charts, images | ✗ |
+| Flat `.fods` files | ✗ not a zip package; convert to `.ods` first |
+
+Details worth knowing:
+
+- **Formulas.** Function names are not translated: OpenFormula and Excel agree on the common ones, and where they differ (`COM.MICROSOFT.IFS` against `_xlfn.IFS`) the name comes back as written. So do the `~` union and `!` intersection operators, and references to other files. `msoxl:` formulas are already Excel syntax and are only unwrapped.
+- **Booleans.** LibreOffice stores a typed TRUE or FALSE as the formula `TRUE()` / `FALSE()` on a boolean cell. That reads back as the boolean it was entered as, not as a formula.
+- **Font size** is reported when it differs from the document's default cell style, for the same reason the xlsx reader leaves out Excel's 11pt.
+- **`displayFormat: auto`.** The xlsx reader reports `auto` (Excel's "General") on every unformatted cell, because every xlsx cell has a style. An unformatted ods cell has none, so no `auto` is invented. Written back without it, a cell gets the default style, whose number format is also General.
+- **Date formats from the value type.** An ods cell says what its value IS (`office:value-type`), separately from how it is shown, so a date cell with no data style is still reported as `date` / `datetime`.
 
 ## The recovery loop
 

@@ -41,7 +41,7 @@ final class Toolkit
 
     /**
      * All five tools, in agent-loop order: read → build → lint → write,
-     * plus describe for reading an existing .xlsx file back.
+     * plus describe for reading an existing .xlsx or .ods file back.
      *
      * @return list<Tool>
      */
@@ -204,11 +204,11 @@ final class Toolkit
     {
         return new Tool(
             name: 'describe_file',
-            description: 'Round-trip an existing .xlsx file on disk back into a Holy Sheet schema (values, formulas, formats). Use to read a file the workbook did not author.',
+            description: 'Round-trip an existing .xlsx or .ods (OpenDocument) file on disk back into a Holy Sheet schema (values, formulas, formats). Both formats return the same schema. Use to read a file the workbook did not author.',
             parameters: [
                 'type' => 'object',
                 'properties' => [
-                    'path' => ['type' => 'string', 'description' => 'Absolute path to an .xlsx file.'],
+                    'path' => ['type' => 'string', 'description' => 'Absolute path to an .xlsx or .ods file.'],
                 ],
                 'required' => ['path'],
             ],

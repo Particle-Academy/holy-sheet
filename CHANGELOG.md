@@ -16,7 +16,7 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
   **What you must do:** nothing. Only a script that looks runs up by the old
   file (`gh run list --workflow=release-gate.yml`) needs `publish.yml` instead.
 
-## [2.3.4] — 2026-09-15
+## [2.3.4] — 2026-09-14
 
 ### Fixed
 
@@ -39,7 +39,7 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
   or by junk. `write()` now refuses it (it used to write column A wrong); run it
   through `validateAndRepair()`, or key widths by index.
 
-## [2.3.3] — 2026-09-15
+## [2.3.3] — 2026-09-14
 
 ### Fixed
 
@@ -54,7 +54,7 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
   **What you must do:** nothing. `diff()` only emits integer positions.
 
-## [2.3.2] — 2026-09-15
+## [2.3.2] — 2026-09-14
 
 ### Fixed
 
@@ -79,7 +79,7 @@ Five defects in the 2.3 op code, found by porting it to Python (fancy-holy-sheet
 **What you must do:** nothing, unless you relied on one of the above. Ops that
 2.3.1's `diff()` produced are unchanged.
 
-## [2.3.1] — 2026-09-15
+## [2.3.1] — 2026-09-14
 
 ### Fixed
 
@@ -92,7 +92,7 @@ Five defects in the 2.3 op code, found by porting it to Python (fancy-holy-sheet
 
   **What you must do:** nothing.
 
-## [2.3.0] — 2026-09-15
+## [2.3.0] — 2026-09-14
 
 ### Added
 

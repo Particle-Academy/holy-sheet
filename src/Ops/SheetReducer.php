@@ -79,8 +79,11 @@ final class SheetReducer
             if (! is_array($op['sheet'] ?? null)) {
                 return $schema;
             }
-            $index = max(0, min(count($sheets), (int) ($op['index'] ?? count($sheets))));
-            array_splice($sheets, $index, 0, [$op['sheet']]);
+            $index = array_key_exists('index', $op) ? self::integer($op['index']) : count($sheets);
+            if ($index === null) {
+                return $schema;
+            }
+            array_splice($sheets, max(0, min(count($sheets), $index)), 0, [$op['sheet']]);
             $schema['sheets'] = $sheets;
 
             return $schema;
@@ -90,6 +93,15 @@ final class SheetReducer
 
         if ($at === null) {
             return $schema;
+        }
+
+        // Positions and counts are ints or digit strings. A present value that is
+        // neither skips the op: `(int)` read junk as 0, which moved a sheet to the
+        // front, inserted one there, or unfroze panes.
+        foreach (['index', 'toIndex', 'rows', 'cols', 'at', 'count'] as $field) {
+            if (array_key_exists($field, $op) && self::integer($op[$field]) === null) {
+                return $schema;
+            }
         }
 
         switch ($type) {
@@ -103,7 +115,7 @@ final class SheetReducer
 
             case 'move_sheet':
                 [$moved] = array_splice($sheets, $at, 1);
-                $to = max(0, min(count($sheets), (int) ($op['toIndex'] ?? $at)));
+                $to = max(0, min(count($sheets), self::integer($op['toIndex'] ?? $at) ?? $at));
                 array_splice($sheets, $to, 0, [$moved]);
                 break;
 
@@ -122,8 +134,8 @@ final class SheetReducer
                 break;
 
             case 'set_frozen':
-                $sheets[$at] = self::setOrUnset($sheets[$at], 'frozenRows', (int) ($op['rows'] ?? 0), 0);
-                $sheets[$at] = self::setOrUnset($sheets[$at], 'frozenCols', (int) ($op['cols'] ?? 0), 0);
+                $sheets[$at] = self::setOrUnset($sheets[$at], 'frozenRows', self::integer($op['rows'] ?? 0) ?? 0, 0);
+                $sheets[$at] = self::setOrUnset($sheets[$at], 'frozenCols', self::integer($op['cols'] ?? 0) ?? 0, 0);
                 break;
 
             case 'set_cell':
@@ -139,19 +151,19 @@ final class SheetReducer
                 break;
 
             case 'insert_rows':
-                $sheets[$at] = self::shiftRows($sheets[$at], (int) ($op['at'] ?? 0), max(0, (int) ($op['count'] ?? 0)));
+                $sheets[$at] = self::shiftRows($sheets[$at], self::integer($op['at'] ?? 0) ?? 0, max(0, self::integer($op['count'] ?? 0) ?? 0));
                 break;
 
             case 'delete_rows':
-                $sheets[$at] = self::shiftRows($sheets[$at], (int) ($op['at'] ?? 0), -max(0, (int) ($op['count'] ?? 0)));
+                $sheets[$at] = self::shiftRows($sheets[$at], self::integer($op['at'] ?? 0) ?? 0, -max(0, self::integer($op['count'] ?? 0) ?? 0));
                 break;
 
             case 'insert_columns':
-                $sheets[$at] = self::shiftColumns($sheets[$at], (int) ($op['at'] ?? 0), max(0, (int) ($op['count'] ?? 0)));
+                $sheets[$at] = self::shiftColumns($sheets[$at], self::integer($op['at'] ?? 0) ?? 0, max(0, self::integer($op['count'] ?? 0) ?? 0));
                 break;
 
             case 'delete_columns':
-                $sheets[$at] = self::shiftColumns($sheets[$at], (int) ($op['at'] ?? 0), -max(0, (int) ($op['count'] ?? 0)));
+                $sheets[$at] = self::shiftColumns($sheets[$at], self::integer($op['at'] ?? 0) ?? 0, -max(0, self::integer($op['count'] ?? 0) ?? 0));
                 break;
 
             default:
@@ -161,6 +173,16 @@ final class SheetReducer
         $schema['sheets'] = array_values($sheets);
 
         return $schema;
+    }
+
+    /** An int, or a string of digits; anything else is null. */
+    public static function integer(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        return is_string($value) && ctype_digit($value) ? (int) $value : null;
     }
 
     /** @param list<array<string,mixed>> $sheets */

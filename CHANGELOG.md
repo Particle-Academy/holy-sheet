@@ -4,6 +4,21 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.3.3] — 2026-09-15
+
+### Fixed
+
+- **An op with a position or count that is not a number moved or unfroze
+  things.** The reducer cast `add_sheet.index`, `move_sheet.toIndex`,
+  `set_frozen.rows`/`cols` and the row and column ops' `at`/`count` with `(int)`,
+  so `toIndex: "last"` moved a sheet to the FRONT, `index: "end"` inserted one
+  there, and `rows: "one"` unfroze the panes. A present value that is not an int
+  or a string of digits now skips the op; absent keys keep their defaults
+  (`add_sheet` appends, `move_sheet` stays, `set_frozen` uses 0). The same class
+  of defect was found in last-word's reducer (last-word 0.6.2).
+
+  **What you must do:** nothing. `diff()` only emits integer positions.
+
 ## [2.3.2] — 2026-09-15
 
 ### Fixed

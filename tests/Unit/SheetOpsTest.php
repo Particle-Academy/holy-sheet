@@ -377,3 +377,19 @@ it('aligns rows by content, breaking ties toward deleting first', function () {
     expect(SheetDiff::hunks(['a', 'b'], ['a', 'z']))->toBe([[1, 1, 1]]);
     expect(SheetDiff::hunks(['a'], ['a']))->toBe([]);
 });
+
+it('skips an op whose position or count is not a number, instead of reading it as 0', function () {
+    $w = hsWorkbook();
+
+    // `(int) "last"` is 0: these moved Notes to the front, inserted a sheet
+    // there, and unfroze the header row.
+    expect(Agent::reduce($w, ['type' => 'move_sheet', 'sheet' => 'Notes', 'toIndex' => 'last']))->toBe($w);
+    expect(Agent::reduce($w, ['type' => 'add_sheet', 'index' => 'end', 'sheet' => ['name' => 'X', 'cells' => []]]))->toBe($w);
+    expect(Agent::reduce($w, ['type' => 'set_frozen', 'sheet' => 'Q3', 'rows' => 'one', 'cols' => 0]))->toBe($w);
+    expect(Agent::reduce($w, ['type' => 'insert_rows', 'sheet' => 'Q3', 'at' => 2, 'count' => '2x']))->toBe($w);
+
+    // Ints, digit strings and absent defaults still work.
+    expect(Agent::reduce($w, ['type' => 'move_sheet', 'sheet' => 'Notes', 'toIndex' => '0'])['sheets'][0]['name'])->toBe('Notes');
+    expect(Agent::reduce($w, ['type' => 'add_sheet', 'sheet' => ['name' => 'X', 'cells' => []]])['sheets'][2]['name'])->toBe('X');
+});
+

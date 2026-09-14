@@ -151,6 +151,23 @@ final class Validator
                 'Pick a built-in theme or omit for default.');
         }
 
+        if (isset($sheet['columnWidths'])) {
+            if (!is_array($sheet['columnWidths'])) {
+                $errors[] = $this->error("{$path}.columnWidths", 'object keyed by 0-based column index', $this->typeOf($sheet['columnWidths']), $sheet['columnWidths'],
+                    'Column widths map a 0-based column index to pixels: {"0": 120, "1": 80}.');
+            } else {
+                foreach ($sheet['columnWidths'] as $key => $px) {
+                    if (ColumnWidths::index($key) === null) {
+                        $errors[] = $this->error("{$path}.columnWidths.{$key}", 'a 0-based column index from 0 to '.ColumnWidths::MAX_INDEX, $this->typeOf($key), $key,
+                            'Keys are 0-based column indexes: "0" is column A, "1" is column B. Use the index, not the letter.');
+                    } elseif (ColumnWidths::width($px) === null) {
+                        $errors[] = $this->error("{$path}.columnWidths.{$key}", 'a non-negative number of pixels', $this->typeOf($px), $px,
+                            'A width is a number of pixels, like 120.');
+                    }
+                }
+            }
+        }
+
         return $errors;
     }
 

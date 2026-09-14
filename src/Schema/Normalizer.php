@@ -199,7 +199,12 @@ final class Normalizer
     {
         $out = [];
         foreach ($widths as $key => $px) {
-            $out[(int) $key] = (float) $px;
+            // An entry that is not a column index and a width is skipped. `(int)`
+            // read the key "abc" as 0 and overwrote column A's width.
+            $index = ColumnWidths::index($key);
+            $width = ColumnWidths::width($px);
+            if ($index === null || $width === null) continue;
+            $out[$index] = $width;
         }
         return $out;
     }

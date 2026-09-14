@@ -4,6 +4,29 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.3.4] — 2026-09-15
+
+### Fixed
+
+- **A `columnWidths` key that is not a column index overwrote column A.** The
+  writer cast the key with `(int)`, so `{"0": 120, "abc": 999}` wrote column A at
+  999 pixels. The Node and Python writers disagreed with this and with each other:
+  Python's `to_bytes()` raised `ValueError`, and Node wrote a `NaN` column. One
+  rule now applies in all three (`HolySheet\Schema\ColumnWidths`):
+  - a **key** is a 0-based column index from 0 to 16383 (Excel's last column), as
+    an int or a string of digits;
+  - a **width** is a non-negative number, or a string of digits (`"80.5"`).
+  - `validate()` reports each other entry by path (`sheets[0].columnWidths.abc`),
+    so `write()` and `toBytes()` refuse it instead of writing the wrong width.
+  - `validateAndRepair()` turns a one- or two-letter key into its index (`"B"` is
+    1) and drops an entry it cannot repair, and lists both.
+  - The normalizer skips such an entry, so a schema that skips validation can no
+    longer clobber a column either.
+
+  **What you must do:** nothing, unless a schema carried a width keyed by a letter
+  or by junk. `write()` now refuses it (it used to write column A wrong); run it
+  through `validateAndRepair()`, or key widths by index.
+
 ## [2.3.3] — 2026-09-15
 
 ### Fixed

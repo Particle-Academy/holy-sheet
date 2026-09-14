@@ -102,6 +102,30 @@ final class Repairer
             $this->repairs[] = "changed '{$path}.theme' from '{$original}' to 'default' (unknown theme)";
         }
 
+        // Column widths: a letter key becomes its index; an entry that is still
+        // not a column index and a width is dropped, and said.
+        if (isset($sheet['columnWidths']) && is_array($sheet['columnWidths'])) {
+            $widths = [];
+            $changed = false;
+            foreach ($sheet['columnWidths'] as $key => $px) {
+                $index = ColumnWidths::index($key);
+                if ($index === null && ($letters = ColumnWidths::fromLetters($key)) !== null) {
+                    $index = $letters;
+                    $this->repairs[] = "converted '{$path}.columnWidths.{$key}' to column index {$index}";
+                    $changed = true;
+                }
+                if ($index === null || ColumnWidths::width($px) === null) {
+                    $this->repairs[] = "dropped '{$path}.columnWidths.{$key}' (not a column index and a width)";
+                    $changed = true;
+                    continue;
+                }
+                $widths[$index] = $px;
+            }
+            if ($changed) {
+                $sheet['columnWidths'] = $widths;
+            }
+        }
+
         // Trim whitespace in sparse-cell A1 addresses
         if (isset($sheet['cells']) && is_array($sheet['cells']) && !array_is_list($sheet['cells'])) {
             $cleaned = [];

@@ -4,6 +4,31 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.3.2] — 2026-09-15
+
+### Fixed
+
+Five defects in the 2.3 op code, found by porting it to Python (fancy-holy-sheet
+0.3.0), each with a test that fails against 2.3.1:
+
+- **`opSchema()` still rejected most `set_column_widths` ops a diff emits.** PHP
+  encodes widths keyed 0..n-1 as a JSON list (`[120, 80, 140]`), and 2.3.1
+  allowed only an EMPTY list. A list is now accepted, indexed by position.
+- **An op with a non-string `type` could remove a sheet.** The reducer's `switch`
+  compared loosely, so `type: true` matched `remove_sheet`. Types are now strings
+  compared strictly, and anything else is skipped.
+- **A padded address wrote a key of its own.** `" a1 "` was stored under `" A1 "`;
+  `set_cell` and `clear_cell` now trim, as the address is validated.
+- **A column-width key that is not a column index was read as column A** on a
+  column insert or delete (`(int) "abc"` is 0) and could overwrite its width. It
+  is dropped.
+- **Two values JSON cannot hold compared as the same.** `diff()`'s equality check
+  encoded both to `""`, so invalid UTF-8 in two different cells could record no
+  change. It now throws `JsonException`.
+
+**What you must do:** nothing, unless you relied on one of the above. Ops that
+2.3.1's `diff()` produced are unchanged.
+
 ## [2.3.1] — 2026-09-15
 
 ### Fixed

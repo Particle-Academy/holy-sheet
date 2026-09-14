@@ -506,10 +506,16 @@ final class SheetDiff
         return array_column($parsed, 2);
     }
 
-    /** JSON with map keys sorted and list order kept. */
+    /**
+     * JSON with map keys sorted and list order kept.
+     *
+     * Throws on a value JSON cannot hold (invalid UTF-8, NAN, INF) rather than
+     * returning "": two different unencodable values used to compare as the
+     * same, so a diff could record no change where there was one.
+     */
     private static function canon(mixed $value): string
     {
-        return (string) json_encode(self::sortKeys($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+        return json_encode(self::sortKeys($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR, 4096);
     }
 
     private static function sortKeys(mixed $value): mixed

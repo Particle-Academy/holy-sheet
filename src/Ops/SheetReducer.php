@@ -53,6 +53,12 @@ final class SheetReducer
     {
         $type = $op['type'] ?? null;
 
+        // A string, compared strictly. `switch` compares loosely, and an op of
+        // `type: true` matched the first case and REMOVED a sheet.
+        if (! is_string($type) || ! in_array($type, SheetOpSchema::TYPES, true)) {
+            return $schema;
+        }
+
         if ($type === 'set_workbook') {
             return is_array($op['data'] ?? null) ? $op['data'] : $schema;
         }
@@ -129,7 +135,7 @@ final class SheetReducer
                 break;
 
             case 'clear_cell':
-                unset($sheets[$at]['cells'][strtoupper((string) ($op['address'] ?? ''))]);
+                unset($sheets[$at]['cells'][strtoupper(trim((string) ($op['address'] ?? '')))]);
                 break;
 
             case 'insert_rows':
@@ -199,7 +205,8 @@ final class SheetReducer
      */
     private static function setCell(array $sheet, array $op): array
     {
-        $address = strtoupper((string) ($op['address'] ?? ''));
+        // Trimmed as it is validated: `" a1 "` is A1, not a key of its own.
+        $address = strtoupper(trim((string) ($op['address'] ?? '')));
 
         if (CellAddress::parse($address) === null) {
             return $sheet;
@@ -328,6 +335,11 @@ final class SheetReducer
         if (is_array($sheet['columnWidths'] ?? null)) {
             $widths = [];
             foreach ($sheet['columnWidths'] as $index => $width) {
+                // A key that is not a column index is dropped, not read as
+                // column 0 — `(int) "abc"` would overwrite column A's width.
+                if (! is_int($index) && ! ctype_digit((string) $index)) {
+                    continue;
+                }
                 $number = (int) $index + 1;
                 if ($number < $at) {
                     $widths[(int) $index] = $width;

@@ -53,10 +53,12 @@ final class SheetOpSchema
             self::variant('move_sheet', ['sheet' => $sheet, 'toIndex' => ['type' => 'integer', 'minimum' => 0]], ['sheet', 'toIndex'], 'Move a sheet to a 0-based position.'),
             self::variant('replace_sheet', ['sheet' => $sheet, 'data' => $object], ['sheet', 'data'], 'Replace one sheet whole.'),
             self::variant('set_merged_regions', ['sheet' => $sheet, 'mergedRegions' => ['type' => 'array', 'items' => ['type' => 'object', 'required' => ['start', 'end'], 'properties' => ['start' => $address, 'end' => $address]]]], ['sheet', 'mergedRegions'], 'Set every merged region of a sheet.'),
-            // An EMPTY array too: PHP encodes an empty map as `[]`, and a diff
-            // that removes every width emits exactly that. The Node port, which
-            // found this, emits `{}`. Both mean no widths.
-            self::variant('set_column_widths', ['sheet' => $sheet, 'columnWidths' => ['type' => ['object', 'array'], 'maxItems' => 0]], ['sheet', 'columnWidths'], 'Set every column width of a sheet (0-based column index to pixels); empty removes them.'),
+            // A LIST too. PHP encodes a map whose keys run 0..n-1 as a JSON list,
+            // so widths for columns A, B and C arrive as `[120, 80, 140]` and no
+            // widths as `[]`. 2.3.1 allowed only the empty list, which still
+            // rejected the ops this package's own diff emits (found by the Python
+            // port). A list's position is the column index.
+            self::variant('set_column_widths', ['sheet' => $sheet, 'columnWidths' => ['type' => ['object', 'array'], 'items' => ['type' => 'number', 'minimum' => 0], 'additionalProperties' => ['type' => 'number', 'minimum' => 0]]], ['sheet', 'columnWidths'], 'Set every column width of a sheet (0-based column index to pixels; a list is indexed by position); empty removes them.'),
             self::variant('set_frozen', ['sheet' => $sheet, 'rows' => ['type' => 'integer', 'minimum' => 0], 'cols' => ['type' => 'integer', 'minimum' => 0]], ['sheet', 'rows', 'cols'], 'Set frozen rows and columns.'),
             self::variant('set_meta', ['meta' => $nullableObject], ['meta'], 'Replace the workbook meta, or remove it with null.'),
         ];

@@ -316,8 +316,59 @@ it('emits ops its own schema accepts when every column width is removed', functi
 
     expect($encoded)->toBe([]);
     expect($declared)->toContain('array');
-    expect($variant['properties']['columnWidths']['maxItems'])->toBe(0);
     expect(SheetDiff::same(Agent::reduce($a, $ops), $b))->toBeTrue();
+});
+
+it('emits ops its own schema accepts when widths run 0..n-1, which PHP encodes as a list', function () {
+    // Found by the Python port: 2.3.1 allowed only an EMPTY list, but PHP
+    // encodes widths for columns A, B, C as `[120, 80, 140]`.
+    $a = hsWorkbook();
+    $b = hsWorkbook();
+    $b['sheets'][0]['columnWidths'] = [0 => 120, 1 => 80, 2 => 140];
+
+    $ops = Agent::diff($a, $b);
+    expect(json_encode($ops[0]['columnWidths']))->toBe('[120,80,140]');
+
+    $variant = array_values(array_filter(Agent::opSchema()['oneOf'], fn (array $v) => $v['properties']['type']['const'] === 'set_column_widths'))[0];
+    $widths = $variant['properties']['columnWidths'];
+
+    expect($widths)->not->toHaveKey('maxItems');
+    expect($widths['items'])->toBe(['type' => 'number', 'minimum' => 0]);
+});
+
+it('ignores an op whose type is not a string, instead of matching a case loosely', function () {
+    // `switch` compares loosely: `type: true` matched `remove_sheet`.
+    $w = hsWorkbook();
+
+    expect(Agent::reduce($w, ['type' => true, 'sheet' => 'Q3']))->toBe($w);
+    expect(Agent::reduce($w, ['type' => 0, 'sheet' => 'Q3']))->toBe($w);
+});
+
+it('trims an address, so a padded one reaches the cell it names', function () {
+    $w = hsWorkbook();
+
+    $set = Agent::reduce($w, ['type' => 'set_cell', 'sheet' => 'Q3', 'address' => ' b3 ', 'value' => 1]);
+    expect($set['sheets'][0]['cells'])->not->toHaveKey(' B3 ');
+    expect($set['sheets'][0]['cells']['B3'])->toBe(['value' => 1]);
+
+    $cleared = Agent::reduce($w, ['type' => 'clear_cell', 'sheet' => 'Q3', 'address' => ' a2 ']);
+    expect($cleared['sheets'][0]['cells'])->not->toHaveKey('A2');
+});
+
+it('drops a column-width key that is not a column index, instead of reading it as column A', function () {
+    // The junk key comes AFTER column A's width, so reading it as column A would
+    // overwrite 10 with 999. (First in the map, it was itself overwritten, and a
+    // version of this test that put it there passed against the broken code.)
+    $w = ['sheets' => [['name' => 'S', 'cells' => [], 'columnWidths' => [0 => 10, 'abc' => 999, 1 => 20]]]];
+
+    $moved = Agent::reduce($w, ['type' => 'insert_columns', 'sheet' => 'S', 'at' => 1, 'count' => 1]);
+
+    expect($moved['sheets'][0]['columnWidths'])->toBe([1 => 10, 2 => 20]);
+});
+
+it('refuses to compare values JSON cannot hold, instead of calling them the same', function () {
+    // Both used to encode to "" and compare equal.
+    expect(fn () => SheetDiff::same("\xB1", "\xB2"))->toThrow(JsonException::class);
 });
 
 it('aligns rows by content, breaking ties toward deleting first', function () {

@@ -4,6 +4,28 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.2.1] — 2026-09-14
+
+### Fixed
+
+- **`Agent::lint()` accepts quoted sheet names** ([#6](https://github.com/Particle-Academy/holy-sheet/issues/6)).
+  `=SUM('My Earnings Projection'!A2:A3)` linted as `#NAME?` because the
+  tokenizer had no case for `'`, so any cross-sheet formula pointing at a sheet
+  whose name contains a space failed. An agent reading that error concluded
+  cross-sheet formulas were unsupported and rebuilt each sheet with duplicated
+  formulas. Excel's doubled-quote escape works too: `'Q3 ''Final'''!B2` is the
+  sheet `Q3 'Final'`.
+- **A reference to a sheet that does not exist is `#REF!`**, quoted or not, and
+  the hint names the sheet and lists the ones that exist. It used to lint clean:
+  the missing sheet's cells read as blanks, so `=SUM(Nope!A2:A3)` summed to zero
+  and passed.
+- **Sheet names match case-insensitively**, as in Excel. `deals!A2` reaches the
+  sheet `Deals`; before, it read blanks.
+
+**What you must do:** nothing, unless you relied on a formula that names a
+missing sheet linting clean. It now reports `#REF!`, which is what Excel shows
+for it.
+
 ## [2.2.0] — 2026-09-13
 
 ### Added

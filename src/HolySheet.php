@@ -26,7 +26,7 @@ use HolySheet\Schema\DumpOptions;
  */
 final class HolySheet
 {
-    public const VERSION = '2.2.0';
+    public const VERSION = '2.2.1';
 
     /* ------------------------------------------------------------------ */
     /* Instance API (used by the Facade + DI consumers)                    */

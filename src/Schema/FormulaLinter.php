@@ -47,9 +47,22 @@ final class FormulaLinter
      * @param  array<string,mixed>  $schema
      * @return list<array{sheet:string,address:string,formula:string,error:string,hint:string}>
      */
+    /**
+     * Every sheet name, keyed by its lower-cased form. Excel matches sheet names
+     * without regard to case, and a reference to a sheet that is not here is
+     * `#REF!` rather than a range of blanks.
+     *
+     * @var array<string,string>
+     */
+    private array $sheetNames = [];
+
     public function lint(array $schema): array
     {
         $workbook = (new Normalizer())->normalize($schema);
+        $this->sheetNames = [];
+        foreach ($workbook->sheets as $sheet) {
+            $this->sheetNames[mb_strtolower($sheet->name)] = $sheet->name;
+        }
         $index = $this->buildIndex($workbook);
         $cache = [];
         $issues = [];
@@ -155,6 +168,29 @@ final class FormulaLinter
                 $value = substr($src, $start, $i - $start);
                 $i++; // consume closing quote
                 $tokens[] = ['type' => 'STRING', 'value' => $value];
+                continue;
+            }
+            // Quoted sheet name: 'My Sheet', with Excel's '' for a literal quote.
+            // Kept with its quotes; cleanSheetName() unwraps it. A quote that
+            // never closes is a syntax error, not a name running to the end.
+            if ($ch === "'") {
+                $start = $i;
+                $i++;
+                while (true) {
+                    if ($i >= $len) {
+                        throw new LinterError(self::ERR_NAME);
+                    }
+                    if ($src[$i] === "'") {
+                        if ($i + 1 < $len && $src[$i + 1] === "'") {
+                            $i += 2;
+                            continue;
+                        }
+                        $i++;
+                        break;
+                    }
+                    $i++;
+                }
+                $tokens[] = ['type' => 'SHEET', 'value' => substr($src, $start, $i - $start)];
                 continue;
             }
             // Identifier (cell ref, function name, sheet name)
@@ -290,17 +326,25 @@ final class FormulaLinter
             return $tok['value'];
         }
 
-        // Identifier — function call, sheet-qualified ref, cell ref, or range
-        if ($tok['type'] === 'IDENT') {
-            // Sheet!Ref form: IDENT '!' IDENT
+        // A quoted name is only ever a sheet qualifier. On its own it is not a
+        // value, so it falls through to #NAME? below.
+        if ($tok['type'] === 'SHEET' || $tok['type'] === 'IDENT') {
+            // Sheet!Ref form: (SHEET | IDENT) '!' IDENT
             if ($pos + 1 < count($tokens)
                 && $tokens[$pos + 1]['type'] === 'OP' && $tokens[$pos + 1]['value'] === '!'
                 && $pos + 2 < count($tokens) && $tokens[$pos + 2]['type'] === 'IDENT') {
-                $sheetName = $this->cleanSheetName($tok['value']);
+                $sheetName = $this->sheetNames[mb_strtolower($this->cleanSheetName($tok['value']))] ?? null;
+                if ($sheetName === null) {
+                    throw new LinterError(self::ERR_REF);
+                }
                 $pos += 2;
                 $startTok = $tokens[$pos]['value'];
                 $pos++;
                 return $this->resolveRefOrRange($startTok, $sheetName, $tokens, $pos, $index, $cache, $stack);
+            }
+
+            if ($tok['type'] === 'SHEET') {
+                throw new LinterError(self::ERR_NAME);
             }
 
             // Function call: IDENT '('
@@ -366,11 +410,14 @@ final class FormulaLinter
         return preg_match('/^[A-Z]+\d+$/', $ref) === 1 ? $ref : null;
     }
 
-    /** Strip surrounding single quotes that Excel uses for sheet names with spaces. */
+    /**
+     * Unwrap the single quotes Excel puts around a sheet name that needs them,
+     * and turn its doubled quote back into one: 'Q3 ''Final''' is Q3 'Final'.
+     */
     private function cleanSheetName(string $name): string
     {
         if (strlen($name) >= 2 && $name[0] === "'" && $name[-1] === "'") {
-            $name = substr($name, 1, -1);
+            $name = str_replace("''", "'", substr($name, 1, -1));
         }
         return $name;
     }
@@ -592,7 +639,7 @@ final class FormulaLinter
     {
         return match ($error) {
             self::ERR_VALUE => $this->hintValue($formula, $sheet, $index, $cache),
-            self::ERR_REF => 'A cell reference points to a cell that doesn\'t exist in the workbook. Check column letters and row numbers.',
+            self::ERR_REF => $this->hintRef($formula),
             self::ERR_NAME => 'The formula references an unknown function or has a syntax error. Holy Sheet supports: SUM, AVERAGE, COUNT, COUNTA, MIN, MAX, IF, ROUND, ABS, LEN, UPPER, LOWER, CONCAT.',
             self::ERR_DIV0 => 'Division by zero — the divisor evaluated to 0.',
             self::ERR_CIRC => 'Circular reference — the formula directly or transitively depends on its own cell.',
@@ -600,18 +647,46 @@ final class FormulaLinter
         };
     }
 
+    /**
+     * A sheet qualifier, quoted ('My Sheet'!) or bare (Sheet2!). Group 1 is the
+     * name as written, quotes included.
+     */
+    private const SHEET_QUALIFIER = "('(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_.]*)!";
+
+    private function hintRef(string $formula): string
+    {
+        // Name the sheet when that is what is missing. "A cell doesn't exist"
+        // sends an agent to check column letters in a sheet it never created.
+        if (preg_match_all('/'.self::SHEET_QUALIFIER.'/', $formula, $matches) > 0) {
+            foreach ($matches[1] as $raw) {
+                $name = $this->cleanSheetName($raw);
+                if (! isset($this->sheetNames[mb_strtolower($name)])) {
+                    return sprintf(
+                        "The formula refers to a sheet named '%s', and this workbook has no such sheet. Its sheets are: %s. Quote a name that contains spaces or punctuation: 'My Sheet'!A1.",
+                        $name,
+                        implode(', ', array_values($this->sheetNames)),
+                    );
+                }
+            }
+        }
+
+        return 'A cell reference points to a cell that doesn\'t exist in the workbook. Check column letters and row numbers.';
+    }
+
     private function hintValue(string $formula, string $sheet, array $index, array $cache): string
     {
         // Look at every cell ref appearing in the formula and surface ones
         // that resolved to non-numeric strings — that's almost always the
         // off-by-one bug (header row instead of data row).
-        if (preg_match_all('/(?:([A-Za-z][A-Za-z0-9_]*)!)?\$?([A-Z]+)\$?(\d+)/i', $formula, $matches, PREG_SET_ORDER) === false) {
+        if (preg_match_all('/(?:'.self::SHEET_QUALIFIER.')?\$?([A-Z]+)\$?(\d+)/i', $formula, $matches, PREG_SET_ORDER) === false) {
             return 'A non-numeric value was used in arithmetic.';
         }
 
         $offenders = [];
         foreach ($matches as $m) {
-            $sheetName = $m[1] !== '' ? $m[1] : $sheet;
+            $sheetName = $m[1] !== ''
+                ? ($this->sheetNames[mb_strtolower($this->cleanSheetName($m[1]))] ?? $this->cleanSheetName($m[1]))
+                : $sheet;
             $a1 = strtoupper($m[2]).$m[3];
             $key = $sheetName.'!'.$a1;
             $cell = $index[$key] ?? null;

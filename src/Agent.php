@@ -7,6 +7,9 @@ namespace HolySheet;
 use HolySheet\Exceptions\UnsupportedFormatException;
 use HolySheet\Helpers\ArrayBuilder;
 use HolySheet\Helpers\CsvBuilder;
+use HolySheet\Ops\SheetDiff;
+use HolySheet\Ops\SheetOpSchema;
+use HolySheet\Ops\SheetReducer;
 use HolySheet\Reader\FormatSniffer;
 use HolySheet\Reader\OdsReader;
 use HolySheet\Reader\XlsxReader;
@@ -192,5 +195,66 @@ final class Agent
     public static function dumpJson(array $schema, ?DumpOptions $opts = null): string
     {
         return (new Dumper())->dump($schema, $opts);
+    }
+
+    /**
+     * The ops that turn schema `$a` into schema `$b`.
+     *
+     * - `reduce($a, diff($a, $b))` equals `$b` (key order aside).
+     * - Schemas that write the same workbook diff to `[]`, so
+     *   `diff($s, describe(<file of toBytes($s)>)) === []`: a save without a
+     *   change records nothing.
+     * - One changed cell is one `set_cell`; an inserted row is one
+     *   `insert_rows` plus its cells.
+     *
+     * Store `diff($new, $old)` to keep a version as the ops that restore it.
+     * Both schemas must be valid: the "same workbook" check writes them.
+     *
+     * @param  array<string,mixed>  $a
+     * @param  array<string,mixed>  $b
+     * @return list<array<string,mixed>>
+     */
+    public static function diff(array $a, array $b): array
+    {
+        return SheetDiff::diff($a, $b);
+    }
+
+    /**
+     * Apply one op, or a list of them, to a schema; returns a new schema. An op
+     * naming a sheet that is not there is skipped.
+     *
+     * @param  array<string,mixed>  $schema
+     * @param  array<string,mixed>|list<array<string,mixed>>  $opOrOps
+     * @return array<string,mixed>
+     */
+    public static function reduce(array $schema, array $opOrOps): array
+    {
+        $ops = $opOrOps === [] || array_is_list($opOrOps) ? $opOrOps : [$opOrOps];
+
+        return SheetReducer::applyAll($schema, $ops);
+    }
+
+    /**
+     * JSON Schema for one op. `set_cell`, `set_range` and `set_workbook` are
+     * fancy-sheets' `SheetOp` shapes.
+     *
+     * @return array<string,mixed>
+     */
+    public static function opSchema(): array
+    {
+        return SheetOpSchema::jsonSchema();
+    }
+
+    /**
+     * Whether two schemas write the same workbook: a columns/rows sheet and the
+     * cell map it becomes are equivalent, and so are a schema without
+     * `meta.created` and its written copy.
+     *
+     * @param  array<string,mixed>  $a
+     * @param  array<string,mixed>  $b
+     */
+    public static function equivalent(array $a, array $b): bool
+    {
+        return SheetDiff::equivalent($a, $b);
     }
 }

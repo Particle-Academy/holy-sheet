@@ -4,6 +4,36 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-09-15
+
+### Added
+
+- **`Agent::diff()`, `Agent::reduce()`, `Agent::opSchema()` and `Agent::equivalent()`:
+  a workbook's versions stored as ops** ([#7](https://github.com/Particle-Academy/holy-sheet/issues/7)).
+  Hashing xlsx bytes cannot keep a one-cell edit small, because a zip changes
+  nearly every byte, so a version history had to store a whole file per edit.
+  `diff($new, $old)` is the op list that restores `$old` from `$new`.
+  - `reduce($a, diff($a, $b))` equals `$b`, key order aside. The ops are verified
+    by replaying them: a sheet the granular ops cannot reproduce is replaced
+    whole, and so, as a last resort, is the workbook.
+  - One changed cell is one `set_cell`. Rows and columns are aligned by content
+    first, so an inserted row is one `insert_rows` plus its cells rather than
+    every cell below it rewritten.
+  - Schemas that write the same workbook diff to `[]`, so a save without a change
+    records nothing. A columns/rows sheet and the cells it becomes are the same,
+    and so is the creation time the writer stamps on a schema that names none.
+  - `set_cell`, `set_range` and `set_workbook` are fancy-sheets' `SheetOp` shapes
+    and behave as its reducer does (a `set_cell` without a formula clears it and
+    keeps the format). The rest are holy-sheet's: `clear_cell`,
+    `insert_rows`/`delete_rows`, `insert_columns`/`delete_columns`,
+    `add_sheet`/`remove_sheet`/`rename_sheet`/`move_sheet`/`replace_sheet`,
+    `set_merged_regions`, `set_column_widths`, `set_frozen` and `set_meta`.
+  - Row and column ops move cells, merged regions and column widths. They do not
+    rewrite formula text; a formula that changes with an insert is its own
+    `set_cell`.
+
+  **What you must do:** nothing. This only adds methods.
+
 ## [2.2.1] — 2026-09-14
 
 ### Fixed

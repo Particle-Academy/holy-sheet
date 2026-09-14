@@ -132,6 +132,36 @@ $tools = array_map(
 return $agent->withInstructions(Toolkit::instructions())->withTools($tools)->stream($prompt);
 ```
 
+## Versions as diffs
+
+`Agent::diff($a, $b)` returns the ops that turn one schema into another, and
+`Agent::reduce($schema, $ops)` applies them. Keep the current workbook as a real
+file and each older version as the ops that restore it:
+
+```php
+use HolySheet\Agent;
+
+$old = Agent::describe($currentPath);
+$ops = Agent::diff($edited, $old);        // store these with the version
+
+Agent::reduce($edited, $ops);             // equals $old
+Agent::opSchema();                        // JSON Schema for one op
+```
+
+- **Exact:** `reduce($a, diff($a, $b))` equals `$b`, key order aside.
+- **Small:** one changed cell is one `set_cell`, and an inserted row is one
+  `insert_rows` plus that row's cells. Rows and columns are aligned by content
+  before cells are compared.
+- **Nothing for no change:** schemas that write the same workbook diff to `[]`,
+  so `diff($s, describe(<file of toBytes($s)>))` is `[]`. `Agent::equivalent()`
+  asks that question directly.
+
+`set_cell`, `set_range` and `set_workbook` are fancy-sheets' `SheetOp` shapes, so
+stored ops can drive a live `useSheetSync` session. The other ops cover sheets,
+rows, columns, merges, widths, frozen panes and meta. Granular ops address
+sheets in the cell form `describe()` returns; a sheet authored as columns/rows
+is replaced whole when it changes.
+
 ## Compatibility
 
 | | Versions |

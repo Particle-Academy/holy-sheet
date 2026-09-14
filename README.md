@@ -1,16 +1,16 @@
 # Holy Sheet
 
-[![Fancy UI suite](art/fancy-ui.svg)](https://particle.academy)
+[![Fancified](art/fancified.svg)](https://particle.academy)
 
 **Standalone spreadsheet writing tool for agentic document creation.**
 
-PHP 8.2+ library for writing valid xlsx files from a JSON-shaped schema. Zero framework dependencies in the core (just `ext-zip`). An optional Laravel adapter — service provider, facade, artisan command — sits in `HolySheet\Laravel\*` and only loads when used. No HTTP routes, no controllers, no opinions about how your app exposes the writer; that's your pipeline's job.
+PHP 8.4+ library for writing valid xlsx files from a JSON-shaped schema. Zero framework dependencies in the core (just `ext-zip`). An optional Laravel adapter — service provider, facade, artisan command — sits in `HolySheet\Laravel\*` and only loads when used. No HTTP routes, no controllers, no opinions about how your app exposes the writer; that's your pipeline's job.
 
 ## Framework-agnostic by design
 
 | Layer | What it requires |
 |-------|------------------|
-| Core (`HolySheet\Agent`, `HolySheet\HolySheet`, validator, writer, schema) | PHP 8.2+, `ext-zip`. Nothing else. Works in plain PHP scripts, Symfony, Laminas, Slim, CLI tools. |
+| Core (`HolySheet\Agent`, `HolySheet\HolySheet`, validator, writer, schema) | PHP 8.4+, `ext-zip`. Nothing else. Works in plain PHP scripts, Symfony, Laminas, Slim, CLI tools. |
 | Laravel adapter (`HolySheet\Laravel\*`) | Optional. Auto-registered via `extra.laravel.providers` if Laravel is installed; ignored otherwise. Provides facade, service provider, and `php artisan holy-sheet:write` command. |
 
 The package ships **no HTTP endpoints**. If you need an "Export to xlsx" route, you write the controller — Holy Sheet gives you the writer + facade.
@@ -168,7 +168,7 @@ is replaced whole when it changes.
 |---|---|
 | **PHP** | 8.2, 8.3, 8.4 |
 | **Laravel adapter** | 10.x, 11.x, 12.x, 13.x (optional) |
-| **Frameworks** | any PHP 8.2+ project — Symfony, Laminas, Slim, plain PHP, CLI |
+| **Frameworks** | any PHP 8.4+ project — Symfony, Laminas, Slim, plain PHP, CLI |
 | **Runtime deps** | none beyond `ext-zip` |
 
 ## Documentation

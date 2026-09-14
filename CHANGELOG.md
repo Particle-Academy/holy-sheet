@@ -4,6 +4,19 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.3.1] — 2026-09-15
+
+### Fixed
+
+- **`Agent::opSchema()` accepts the `set_column_widths` op a diff emits when
+  every width is removed.** PHP encodes an empty map as `[]`, and the schema
+  declared `columnWidths` an object only, so a host validating stored ops with
+  `opSchema()` rejected that op from `diff()`. `columnWidths` may now be an
+  object or an empty array; both mean "no widths" to the reducer. Found by the
+  Node port, which emits `{}` for the same case.
+
+  **What you must do:** nothing.
+
 ## [2.3.0] — 2026-09-15
 
 ### Added

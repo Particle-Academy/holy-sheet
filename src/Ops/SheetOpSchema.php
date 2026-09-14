@@ -53,7 +53,10 @@ final class SheetOpSchema
             self::variant('move_sheet', ['sheet' => $sheet, 'toIndex' => ['type' => 'integer', 'minimum' => 0]], ['sheet', 'toIndex'], 'Move a sheet to a 0-based position.'),
             self::variant('replace_sheet', ['sheet' => $sheet, 'data' => $object], ['sheet', 'data'], 'Replace one sheet whole.'),
             self::variant('set_merged_regions', ['sheet' => $sheet, 'mergedRegions' => ['type' => 'array', 'items' => ['type' => 'object', 'required' => ['start', 'end'], 'properties' => ['start' => $address, 'end' => $address]]]], ['sheet', 'mergedRegions'], 'Set every merged region of a sheet.'),
-            self::variant('set_column_widths', ['sheet' => $sheet, 'columnWidths' => $object], ['sheet', 'columnWidths'], 'Set every column width of a sheet (0-based column index to pixels).'),
+            // An EMPTY array too: PHP encodes an empty map as `[]`, and a diff
+            // that removes every width emits exactly that. The Node port, which
+            // found this, emits `{}`. Both mean no widths.
+            self::variant('set_column_widths', ['sheet' => $sheet, 'columnWidths' => ['type' => ['object', 'array'], 'maxItems' => 0]], ['sheet', 'columnWidths'], 'Set every column width of a sheet (0-based column index to pixels); empty removes them.'),
             self::variant('set_frozen', ['sheet' => $sheet, 'rows' => ['type' => 'integer', 'minimum' => 0], 'cols' => ['type' => 'integer', 'minimum' => 0]], ['sheet', 'rows', 'cols'], 'Set frozen rows and columns.'),
             self::variant('set_meta', ['meta' => $nullableObject], ['meta'], 'Replace the workbook meta, or remove it with null.'),
         ];

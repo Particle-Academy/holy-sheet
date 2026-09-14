@@ -298,6 +298,28 @@ it('publishes one schema variant per op type, and diff only emits those types', 
     expect(array_map(fn (array $v) => $v['properties']['type']['const'], $schema['oneOf']))->toBe(SheetOpSchema::TYPES);
 });
 
+it('emits ops its own schema accepts when every column width is removed', function () {
+    // Found by the Node port: removing every width emitted `columnWidths: []`,
+    // PHP's JSON for an empty map, which the schema declared an object only —
+    // so a host validating stored ops with opSchema() rejected a diff's output.
+    $a = hsWorkbook();
+    $b = hsWorkbook();
+    unset($b['sheets'][0]['columnWidths']);
+
+    $ops = Agent::diff($a, $b);
+    expect($ops)->toHaveCount(1);
+    expect($ops[0]['type'])->toBe('set_column_widths');
+
+    $encoded = json_decode((string) json_encode($ops[0]['columnWidths']));
+    $variant = array_values(array_filter(Agent::opSchema()['oneOf'], fn (array $v) => $v['properties']['type']['const'] === 'set_column_widths'))[0];
+    $declared = (array) $variant['properties']['columnWidths']['type'];
+
+    expect($encoded)->toBe([]);
+    expect($declared)->toContain('array');
+    expect($variant['properties']['columnWidths']['maxItems'])->toBe(0);
+    expect(SheetDiff::same(Agent::reduce($a, $ops), $b))->toBeTrue();
+});
+
 it('aligns rows by content, breaking ties toward deleting first', function () {
     expect(SheetDiff::hunks(['a', 'b', 'c'], ['a', 'x', 'b', 'c']))->toBe([[1, 0, 1]]);
     expect(SheetDiff::hunks(['a', 'b', 'c'], ['a', 'c']))->toBe([[1, 1, 0]]);

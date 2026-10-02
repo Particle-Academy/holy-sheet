@@ -194,6 +194,15 @@ final class Validator
                 'Pick a supported type or omit for "auto" (inferred per cell).');
         }
 
+        // Same rule as a `columnWidths` value, because it is the same field by
+        // another route. Until holy-sheet#8 the writer ignored `width` entirely
+        // and nothing said so; now that it is honoured, a value that CANNOT be
+        // honoured gets a path instead of silence.
+        if (isset($col['width']) && ColumnWidths::width($col['width']) === null) {
+            $errors[] = $this->error("{$path}.width", 'a non-negative number of pixels', $this->typeOf($col['width']), $col['width'],
+                'A column width is a number of pixels, like 120. The sheet-level columnWidths map takes precedence over it.');
+        }
+
         return $errors;
     }
 

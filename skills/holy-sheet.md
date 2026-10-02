@@ -89,6 +89,7 @@ The full JSON Schema lives at `skills/holy-sheet.schema.json`. The fields you'll
 | `theme` | `default` / `minimal` / `plain` / `business` | Pre-baked styling |
 | `frozenRows` / `frozenCols` | integer | Lock the first N rows/cols on scroll |
 | `mergedRegions` | `[{start, end}]` | Cell ranges to merge |
+| `columnWidths` | `{0: 120, 1: 80}` | Widths in pixels, keyed by 0-based column index. Wins over a column's own `width` |
 | `totals` | `{ColumnHeader: 'sum'\|'avg'\|'count'\|'min'\|'max'}` | Symbolic aggregations appended at the bottom |
 
 ### Column
@@ -98,7 +99,7 @@ The full JSON Schema lives at `skills/holy-sheet.schema.json`. The fields you'll
 | `type` | `auto`/`string`/`number`/`integer`/`boolean`/`date`/`datetime`/`currency`/`percent`/`formula` | Default `auto` (infer per cell) |
 | `currency` | ISO-4217 code | `"USD"`, `"EUR"`, `"JPY"` — only with `type: currency` |
 | `decimals` | integer 0-10 | Display precision |
-| `width` | number (px) | Column width override |
+| `width` | number (px) | Width of THIS column, in pixels. The sheet-level `columnWidths` map overrides it |
 
 ### Per-cell format (when you need fine control)
 

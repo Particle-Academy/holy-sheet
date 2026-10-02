@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-10-01
+
 ### Changed
 
 - **The tag workflow is now `.github/workflows/publish.yml`, named `Publish`**
@@ -15,6 +17,47 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
   **What you must do:** nothing. Only a script that looks runs up by the old
   file (`gh run list --workflow=release-gate.yml`) needs `publish.yml` instead.
+
+### Fixed
+
+- **A column's own `width` is honoured. It was documented and silently dropped.**
+  `skills/holy-sheet.schema.json` has declared `Column.width` as *"Column width
+  in pixels. Same as columnWidths but per-column."* for as long as the field has
+  existed, and `skills/holy-sheet.md` lists it in the Column table — but the
+  writer read only `type`, `decimals` and `currency` off a column. A schema
+  written the documented way emitted **no `<cols>` element at all**:
+
+  ```php
+  ['header' => 'Account', 'width' => 220]   // wrote a default-width column
+  ```
+
+  Nothing reported it. `validate()` returned no errors, `validateAndRepair()`
+  listed no repairs, and the file opened fine — just with a truncated account
+  name and a correctly formatted currency showing as `#####`, which is most of
+  what "the spreadsheet looks unstyled" means in practice. Reported by a
+  consumer who had composed against the skill doc, which is exactly who the doc
+  is for (holy-sheet#8).
+
+  Both ways of stating a width now feed one map, and **the sheet-level
+  `columnWidths` map is applied last and wins**. That is deliberate: it is the
+  mechanism that already worked, so anyone who reached for it to work around this
+  bug must not now find a leftover `width` quietly overriding it.
+
+  A `width` that is not a width is no longer ignored either — it is the same rule
+  as a `columnWidths` value (`HolySheet\Schema\ColumnWidths`): `validate()`
+  reports it by path (`sheets[0].columns[0].width`), and `validateAndRepair()`
+  drops it and says so.
+
+  `<col>` elements are also emitted in ascending column order now that two
+  sources merge into one map.
+
+  **What you must do:** nothing, and do not migrate off `columnWidths` — it keeps
+  working and still takes precedence. One thing to know before upgrading: if a
+  schema has carried a `width` that this version can honour, the output bytes
+  change — those columns get the width they always asked for. And if a schema
+  carried a `width` that is not a number of pixels (`"wide"`, `-5`), `write()`
+  now refuses it where it used to ignore it; run it through
+  `validateAndRepair()`, or give it a number.
 
 ## [2.3.4] — 2026-09-14
 

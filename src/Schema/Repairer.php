@@ -126,6 +126,18 @@ final class Repairer
             }
         }
 
+        // A per-column width that is not a width is dropped, and said. Mirrors the
+        // `columnWidths` repair above: there is no letter-key equivalent to
+        // convert here, so an unusable value can only go. See holy-sheet#8.
+        if (isset($sheet['columns']) && is_array($sheet['columns'])) {
+            foreach ($sheet['columns'] as $colIdx => $col) {
+                if (! is_array($col) || ! isset($col['width'])) continue;
+                if (ColumnWidths::width($col['width']) !== null) continue;
+                unset($sheet['columns'][$colIdx]['width']);
+                $this->repairs[] = "dropped '{$path}.columns[{$colIdx}].width' (not a width in pixels)";
+            }
+        }
+
         // Trim whitespace in sparse-cell A1 addresses
         if (isset($sheet['cells']) && is_array($sheet['cells']) && !array_is_list($sheet['cells'])) {
             $cleaned = [];

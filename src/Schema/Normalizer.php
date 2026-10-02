@@ -128,7 +128,7 @@ final class Normalizer
             name: $name,
             cells: $cells,
             mergedRegions: $this->normalizeMerges($sheet['mergedRegions'] ?? []),
-            columnWidths: $this->normalizeColumnWidths($sheet['columnWidths'] ?? []),
+            columnWidths: $this->normalizeWidths($sheet),
             frozenRows: (int) ($sheet['frozenRows'] ?? 0),
             frozenCols: (int) ($sheet['frozenCols'] ?? 0),
         );
@@ -192,6 +192,47 @@ final class Normalizer
                 $out[] = new MergedRegion((string) $m['start'], (string) $m['end']);
             }
         }
+        return $out;
+    }
+
+    /**
+     * The two ways a width can be stated, folded into one map.
+     *
+     * `columns[].width` widens the column at that POSITION; the sheet-level
+     * `columnWidths` map keys the same columns by 0-based index. Both have been
+     * documented in `skills/holy-sheet.schema.json` ("Same as columnWidths but
+     * per-column") for as long as the field has existed, and only the map was
+     * ever read — so a column width written the way the Column table documents
+     * it emitted no `<cols>` element at all, with no error and no repair note
+     * (holy-sheet#8).
+     *
+     * The MAP IS APPLIED LAST and wins. It is the mechanism that already worked,
+     * so anyone who reached for it to work around this bug must not now find a
+     * leftover `width` quietly overriding it.
+     *
+     * @param  array<string,mixed>  $sheet
+     * @return array<int,float>
+     */
+    private function normalizeWidths(array $sheet): array
+    {
+        $out = [];
+
+        foreach (($sheet['columns'] ?? []) as $colIdx => $columnDef) {
+            if (! is_array($columnDef) || ! isset($columnDef['width'])) continue;
+            $index = ColumnWidths::index($colIdx);
+            $width = ColumnWidths::width($columnDef['width']);
+            if ($index === null || $width === null) continue;
+            $out[$index] = $width;
+        }
+
+        foreach ($this->normalizeColumnWidths($sheet['columnWidths'] ?? []) as $index => $width) {
+            $out[$index] = $width;
+        }
+
+        // `<col>` elements are expected in ascending order, and merging two
+        // sources means insertion order is no longer column order.
+        ksort($out);
+
         return $out;
     }
 

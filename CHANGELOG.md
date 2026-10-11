@@ -4,6 +4,65 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-10-11
+
+### Fixed
+
+- **A non-scalar cell value is REFUSED and names the cell, instead of being
+  silently written as the literal string `"Array"`.** Reported from production
+  by the MOIC suite ([#9]), where an operator's spreadsheet edit failed with
+  `Array to string conversion` and no indication of which cell was at fault.
+
+  `Normalizer::coerceValue()` ended with "not a scalar, so it must be safe to
+  stringify":
+
+  ```php
+  if (!is_string($v) && !is_int($v) && !is_float($v) && !is_bool($v)) {
+      return (string) $v;   // an ARRAY reaches this line
+  }
+  ```
+
+  An array gets there whenever a plain `rows` form is nested one level too
+  deep — `rows: [[["x"]]]` instead of `rows: [["x"]]`. No object-cell syntax is
+  needed, which is exactly the shape an AI-generated edit produces.
+
+  **The quiet outcome was the dangerous one.** Under a handler that promotes
+  warnings (Laravel) the cast raised `ErrorException` and killed the whole
+  `normalize()`. With warnings suppressed it wrote the cell as the string
+  `"Array"` and **reported success** — a corrupt workbook that nothing flagged.
+  Both were reproduced at the same line before the fix.
+
+  The guard now tests `instanceof Stringable` rather than "is not a scalar",
+  which also fixes the sibling case on that same line: a non-`Stringable`
+  **object** raised `Error`. A `Stringable` object is still accepted, because it
+  always was legitimately castable.
+
+  The refusal is a `SchemaException` whose structured error names the cell as
+  `Sheet!A1`, with a hint that explains the nesting mistake. Cell addresses use
+  the `Sheet!A1` form rather than the `sheets[0].rows[1]` schema path the rest of
+  the validator uses — deliberate, and the one place the two differ: this fault
+  is always one cell, and the A1 location is what an operator can act on.
+
+- **`validate()` no longer passes a schema that `normalize()` will throw on.**
+  The same input returned **zero** validation errors, so `Agent::validate()` told
+  a caller the workbook was fine and the write then failed — moving the failure
+  to the point where it is hardest to attribute, in the exact flow (validate,
+  then write) that an agent uses. `Validator` now reports
+  `sheets[0].rows[0][0]` for a list-array cell.
+
+  The check is `array_is_list`, **not** `is_array`: the object cell form
+  `{"value": …, "format": {…}}` is an associative array and has always been
+  legal. Rejecting any array would have traded this bug for a far worse one.
+
+  **What you must do:** nothing, if your cells were already scalars. If any
+  schema you build can nest a row one level too deep, you now get a
+  `SchemaException` naming the cell where you previously got a workbook with
+  `"Array"` in it — read `getErrors()[0]['path']` for the address. This is
+  released as a MINOR rather than a patch because that throw is observable to a
+  caller whose input the validator previously accepted.
+
+[#9]: https://github.com/Particle-Academy/holy-sheet/issues/9
+
 ## [2.4.0] — 2026-10-01
 
 ### Changed

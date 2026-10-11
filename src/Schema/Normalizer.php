@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace HolySheet\Schema;
 
 use DateTimeInterface;
+use HolySheet\Exceptions\SchemaException;
 use HolySheet\Workbook\Cell;
 use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\CellComment;
@@ -13,6 +14,7 @@ use HolySheet\Workbook\MergedRegion;
 use HolySheet\Workbook\Sheet;
 use HolySheet\Workbook\Workbook;
 use HolySheet\Writer\Format\DateConverter;
+use Stringable;
 
 final class Normalizer
 {
@@ -73,7 +75,7 @@ final class Normalizer
                 $columnFormat = $columnFormats[$c] ?? null;
                 $rowBand = $theme->dataFormat($r);
                 $merged = $rowBand !== null ? ($columnFormat?->mergeWith($rowBand) ?? $rowBand) : $columnFormat;
-                $cells[$address] = $this->buildCell($address, $value, $merged);
+                $cells[$address] = $this->buildCell($address, $value, $merged, $name);
             }
         }
 
@@ -115,7 +117,7 @@ final class Normalizer
         // inherit. (`mergeWith` takes the overlay as the argument — the caller's
         // value wins field by field.)
         if (isset($sheet['cells']) && is_array($sheet['cells'])) {
-            foreach ($this->normalizeCellMap($sheet['cells']) as $address => $cell) {
+            foreach ($this->normalizeCellMap($sheet['cells'], $name) as $address => $cell) {
                 $beneath = $cells[$address] ?? null;
 
                 $cells[$address] = $beneath?->format !== null
@@ -135,7 +137,7 @@ final class Normalizer
     }
 
     /** @param  array<string,array<string,mixed>>  $map */
-    private function normalizeCellMap(array $map): array
+    private function normalizeCellMap(array $map, ?string $sheetName = null): array
     {
         $cells = [];
         foreach ($map as $address => $cellData) {
@@ -148,7 +150,7 @@ final class Normalizer
                 [$bare, $formula] = $this->promoteFormula($cellData);
                 $cells[$address] = new Cell(
                     address: $address,
-                    value: $formula !== null ? null : $this->coerceValue($bare, null),
+                    value: $formula !== null ? null : $this->coerceValue($bare, null, $address, $sheetName),
                     formula: $formula,
                 );
                 continue;
@@ -174,7 +176,7 @@ final class Normalizer
             $rawValue = $cellData['value'] ?? null;
             $cells[$address] = new Cell(
                 address: $address,
-                value: $this->coerceValue($rawValue, $format),
+                value: $this->coerceValue($rawValue, $format, $address, $sheetName),
                 formula: $cellData['formula'] ?? null,
                 format: $format,
                 comment: $comment,
@@ -269,7 +271,7 @@ final class Normalizer
         };
     }
 
-    private function buildCell(string $address, mixed $value, ?CellFormat $columnFormat): Cell
+    private function buildCell(string $address, mixed $value, ?CellFormat $columnFormat, ?string $sheetName = null): Cell
     {
         if (is_array($value) && !array_is_list($value)) {
             $cellFormat = isset($value['format']) && is_array($value['format'])
@@ -286,7 +288,7 @@ final class Normalizer
             $rawValue = $value['value'] ?? null;
             return new Cell(
                 address: $address,
-                value: $this->coerceValue($rawValue, $merged),
+                value: $this->coerceValue($rawValue, $merged, $address, $sheetName),
                 formula: $value['formula'] ?? null,
                 format: $merged,
                 comment: $comment,
@@ -298,7 +300,7 @@ final class Normalizer
 
         return new Cell(
             address: $address,
-            value: $formula !== null ? null : $this->coerceValue($value, $columnFormat),
+            value: $formula !== null ? null : $this->coerceValue($value, $columnFormat, $address, $sheetName),
             formula: $formula,
             format: $columnFormat,
         );
@@ -324,7 +326,7 @@ final class Normalizer
         return [$value, null];
     }
 
-    private function coerceValue(mixed $value, ?CellFormat $format): string|int|float|bool|null
+    private function coerceValue(mixed $value, ?CellFormat $format, string $address = '?', ?string $sheetName = null): string|int|float|bool|null
     {
         if ($value === null) return null;
 
@@ -345,8 +347,48 @@ final class Normalizer
             return DateConverter::toSerial($value, true);
         }
 
-        if (!is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)) {
+        if ($value instanceof Stringable) {
             return (string) $value;
+        }
+
+        // REFUSE rather than cast. This used to read "not a scalar, so it must
+        // be safe to stringify", and an ARRAY reaches it whenever a plain
+        // `rows` form is nested one level too deep -- no object-cell syntax
+        // required, which is exactly the shape an AI-generated edit produces.
+        //
+        // The cast had two outcomes and the quiet one was the dangerous one:
+        // under a handler that promotes warnings (Laravel) an ErrorException
+        // killed the whole normalize(), and with warnings suppressed the cell
+        // was written as the literal string "Array" while the workbook
+        // reported SUCCESS. A normalizer that rejects bad input is useful; one
+        // that writes "Array" is not. holy-sheet#9, from MOIC production.
+        //
+        // Testing Stringable rather than "is not a scalar" also fixes the
+        // sibling case in the same line: a non-Stringable object raised Error.
+        //
+        // The path is the cell's `Sheet!A1` location, not the `sheets[0].rows[1]`
+        // schema path Validator uses. Deliberate, and the one place the two
+        // conventions differ: this fault is always ONE CELL, and the A1
+        // location is what both an operator and an agent can act on -- the
+        // production report was that the error named no cell, not that it threw.
+        if (!is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)) {
+            $where = $sheetName === null ? $address : "{$sheetName}!{$address}";
+
+            throw SchemaException::fromErrors([[
+                'path' => $where,
+                'expected' => 'a string, number, bool, null, DateTimeInterface or Stringable',
+                'got' => get_debug_type($value),
+                'value' => $value,
+                'hint' => is_array($value)
+                    ? 'This cell holds an array. The usual cause is a `rows` entry nested one level too deep: `rows: [[["x"]]]` makes cell A1 an array, where `rows: [["x"]]` makes it the string "x". For a cell with formatting use the object form: {"value": "x", "format": {...}}.'
+                    : 'Give the cell a scalar, or implement Stringable on the object so the conversion is yours rather than implicit.',
+            ]]);
+            // No custom message: `fromErrors()` takes only the error list, so a
+            // second argument here would be silently DISCARDED -- PHP ignores
+            // extra positional args to a userland function. `summarize()`
+            // already renders "schema invalid at {path}: expected X, got Y",
+            // which is the format every other schema error in this package
+            // uses, so the house message is also the right one.
         }
 
         return $value;

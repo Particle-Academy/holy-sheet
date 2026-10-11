@@ -132,6 +132,28 @@ final class Validator
                     if (!is_array($row)) {
                         $errors[] = $this->error("{$path}.rows[{$j}]", 'array', $this->typeOf($row), $row,
                             'Each row is an array of cell values, in column order.');
+                        continue;
+                    }
+
+                    // A LIST array as a cell value is the holy-sheet#9 shape: a
+                    // row nested one level too deep. It must be caught HERE and
+                    // not left to the writer, because `validate()` returning no
+                    // errors for a schema `normalize()` throws on tells a caller
+                    // the input is fine and moves the failure to where it is
+                    // hardest to attribute. An agent that validates before
+                    // writing — which is the whole point of Agent::validate() —
+                    // was being told to go ahead.
+                    //
+                    // The test is `array_is_list`, NOT `is_array`: the object
+                    // cell form {"value": …, "format": {…}} is an ASSOCIATIVE
+                    // array and has always been legal. Rejecting any array here
+                    // would trade this bug for a far worse one — every formatted
+                    // cell in every workbook.
+                    foreach ($row as $k => $cell) {
+                        if (is_array($cell) && array_is_list($cell)) {
+                            $errors[] = $this->error("{$path}.rows[{$j}][{$k}]", 'a cell value or a cell object', 'array', $cell,
+                                'This cell is a list, which usually means the row is nested one level too deep: `rows: [[["x"]]]` makes cell A1 a list, where `rows: [["x"]]` makes it "x". For a cell with formatting use the object form: {"value": "x", "format": {...}}.');
+                        }
                     }
                 }
             }

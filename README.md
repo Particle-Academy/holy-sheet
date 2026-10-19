@@ -200,6 +200,13 @@ Writes a 3-sheet workbook (Sales / Notes / Status) demonstrating every feature â
 
 Need an HTTP route? Build your own controller around the facade â€” Holy Sheet doesn't ship one. See [docs/LaravelAdapter.md](docs/LaravelAdapter.md#http-controller-pattern) for the recommended shape.
 
+## Agent guide
+
+Building a workbook with an LLM? `agent-guide/professional-workbooks.md` (also `HolySheet\Agent::guide()`)
+is the guide to give the model alongside the JSON schema: the bar a professional
+workbook meets, the schema idioms that reach it, and the failures seen in real
+agent builds. It works with any agent loop.
+
 ## License
 
 MIT

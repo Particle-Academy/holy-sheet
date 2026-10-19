@@ -4,6 +4,18 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.9.0] — 2026-10-19
+
+### Added
+
+- **An agent guide ships with the package: `agent-guide/professional-workbooks.md`, and
+  `HolySheet\Agent::guide()` returns it.** What makes a workbook professional and the schema
+  idioms that produce it, distilled from rubric-judged agent builds in the
+  Fancy document lab: every rule in it moved a measured score. Give it to a
+  model together with the JSON schema; it works with any agent loop. The same
+  bytes ship in the PHP, Node and Python packages (a test in each pins the
+  hash). **Nothing to do**; nothing else changed.
+
 ## [2.8.0] — 2026-10-19
 
 ### Added

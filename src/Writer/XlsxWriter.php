@@ -186,14 +186,24 @@ final class XlsxWriter
             $colsXml .= '</cols>';
         }
 
+        // Rows with cells and rows with only a height, in row order. A height is
+        // written in points (pixels x 0.75), as Excel stores it.
+        $rows = $sheet->rows();
+        foreach (array_keys($sheet->rowHeights) as $rowIndex) {
+            $rows[$rowIndex] ??= [];
+        }
+        ksort($rows);
         $rowsXml = '';
-        foreach ($sheet->rows() as $rowIndex => $row) {
+        foreach ($rows as $rowIndex => $row) {
             $cellsXml = '';
             ksort($row);
             foreach ($row as $col => $cell) {
                 $cellsXml .= $this->cellXml($cell, $styles);
             }
-            $rowsXml .= "<row r=\"{$rowIndex}\">{$cellsXml}</row>";
+            $ht = isset($sheet->rowHeights[$rowIndex])
+                ? ' ht="'.self::decimal($sheet->rowHeights[$rowIndex] * 0.75).'" customHeight="1"'
+                : '';
+            $rowsXml .= $cellsXml === '' ? "<row r=\"{$rowIndex}\"{$ht}/>" : "<row r=\"{$rowIndex}\"{$ht}>{$cellsXml}</row>";
         }
 
         $mergesXml = '';
@@ -207,14 +217,59 @@ final class XlsxWriter
 
         $legacyDrawing = $sheet->hasComments() ? '<legacyDrawing r:id="rId1"/>' : '';
 
+        // Print setup. CT_Worksheet orders these: sheetPr first of all, then
+        // pageSetup and headerFooter after mergeCells and before legacyDrawing.
+        $print = $sheet->print;
+        $sheetPrXml = ($print['fitToWidth'] ?? false) ? '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' : '';
+        $pageSetupXml = '';
+        if ($print !== null && ($print['orientation'] !== null || $print['fitToWidth'])) {
+            $pageSetupXml = '<pageSetup'
+                .($print['orientation'] !== null ? ' orientation="'.$print['orientation'].'"' : '')
+                .($print['fitToWidth'] ? ' fitToWidth="1" fitToHeight="0"' : '')
+                .'/>';
+        }
+        $headerFooterXml = ($print['footer'] ?? null) !== null
+            ? '<headerFooter><oddFooter>'.$this->escape(self::footerCodes($print['footer'])).'</oddFooter></headerFooter>'
+            : '';
+
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .$sheetPrXml
             .$sheetViewsXml
             .$colsXml
             ."<sheetData>{$rowsXml}</sheetData>"
             .$mergesXml
+            .$pageSetupXml
+            .$headerFooterXml
             .$legacyDrawing
             .'</worksheet>';
+    }
+
+    /**
+     * A footer as Excel's header/footer codes: &L / &C / &R start the three
+     * sections, &P is the page number and &N the page count, and a literal "&"
+     * is written "&&" so it cannot start a code.
+     *
+     * @param  array{left: string, center: string, right: string}  $footer
+     */
+    public static function footerCodes(array $footer): string
+    {
+        $codes = '';
+        foreach (['left' => '&L', 'center' => '&C', 'right' => '&R'] as $slot => $code) {
+            if ($footer[$slot] !== '') {
+                $codes .= $code.str_replace(['{pages}', '{page}'], ['&N', '&P'], str_replace('&', '&&', $footer[$slot]));
+            }
+        }
+
+        return $codes;
+    }
+
+    /** A number as the shortest decimal: 24.0 -> "24", 15.75 -> "15.75". */
+    private static function decimal(float $value): string
+    {
+        $out = rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
+
+        return $out === '' || $out === '-0' ? '0' : $out;
     }
 
     private function cellXml(Cell $cell, StylesRegistry $styles): string

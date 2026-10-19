@@ -190,6 +190,53 @@ final class Validator
             }
         }
 
+        if (isset($sheet['rowHeights'])) {
+            if (!is_array($sheet['rowHeights'])) {
+                $errors[] = $this->error("{$path}.rowHeights", 'object keyed by 1-based row number', $this->typeOf($sheet['rowHeights']), $sheet['rowHeights'],
+                    'Row heights map a row NUMBER to pixels: {"1": 32, "4": 28}.');
+            } else {
+                foreach ($sheet['rowHeights'] as $row => $px) {
+                    if (preg_match('/^[1-9]\d{0,6}$/', (string) $row) !== 1) {
+                        $errors[] = $this->error("{$path}.rowHeights.{$row}", 'a 1-based row number', $this->typeOf($row), $row,
+                            'Keys are row numbers as Excel shows them: "1" is the first row.');
+                    } elseif (!is_numeric($px) || (float) $px < 0) {
+                        $errors[] = $this->error("{$path}.rowHeights.{$row}", 'a non-negative number of pixels', $this->typeOf($px), $px,
+                            'A height is a number of pixels, like 28 (20 is a default row).');
+                    }
+                }
+            }
+        }
+
+        if (isset($sheet['print'])) {
+            $print = $sheet['print'];
+            if (!is_array($print)) {
+                $errors[] = $this->error("{$path}.print", 'object {orientation?, fitToWidth?, footer?}', $this->typeOf($print), $print,
+                    'Print setup: {"orientation": "landscape", "fitToWidth": true, "footer": {"right": "Page {page} of {pages}"}}.');
+            } else {
+                if (isset($print['orientation']) && !in_array($print['orientation'], ['portrait', 'landscape'], true)) {
+                    $errors[] = $this->error("{$path}.print.orientation", 'one of: portrait, landscape', $this->typeOf($print['orientation']), $print['orientation'],
+                        'Use landscape for a sheet wider than it is tall.');
+                }
+                if (isset($print['fitToWidth']) && !is_bool($print['fitToWidth'])) {
+                    $errors[] = $this->error("{$path}.print.fitToWidth", 'boolean', $this->typeOf($print['fitToWidth']), $print['fitToWidth'],
+                        'true scales the sheet to one page wide when printed.');
+                }
+                if (isset($print['footer'])) {
+                    if (!is_array($print['footer'])) {
+                        $errors[] = $this->error("{$path}.print.footer", 'object {left?, center?, right?}', $this->typeOf($print['footer']), $print['footer'],
+                            'A footer has up to three slots of text.');
+                    } else {
+                        foreach (['left', 'center', 'right'] as $slot) {
+                            if (isset($print['footer'][$slot]) && !is_string($print['footer'][$slot])) {
+                                $errors[] = $this->error("{$path}.print.footer.{$slot}", 'string', $this->typeOf($print['footer'][$slot]), $print['footer'][$slot],
+                                    'Footer text; {page} and {pages} print the page number and count.');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         return $errors;
     }
 

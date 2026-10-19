@@ -133,7 +133,59 @@ final class Normalizer
             columnWidths: $this->normalizeWidths($sheet),
             frozenRows: (int) ($sheet['frozenRows'] ?? 0),
             frozenCols: (int) ($sheet['frozenCols'] ?? 0),
+            rowHeights: self::normalizeRowHeights($sheet['rowHeights'] ?? null),
+            print: self::normalizePrint($sheet['print'] ?? null),
         );
+    }
+
+    /**
+     * `rowHeights`: 1-based row number => pixels. Anything that is not a row
+     * number with a non-negative number of pixels is dropped (the validator
+     * names it first).
+     *
+     * @return array<int,float>
+     */
+    public static function normalizeRowHeights(mixed $map): array
+    {
+        if (!is_array($map)) {
+            return [];
+        }
+        $out = [];
+        foreach ($map as $row => $px) {
+            if (preg_match('/^[1-9]\d{0,6}$/', (string) $row) === 1 && is_numeric($px) && (float) $px >= 0) {
+                $out[(int) $row] = (float) $px;
+            }
+        }
+        ksort($out);
+
+        return $out;
+    }
+
+    /**
+     * `print`, normalised; null when it asks for nothing.
+     *
+     * @return array{orientation: ?string, fitToWidth: bool, footer: ?array{left: string, center: string, right: string}}|null
+     */
+    public static function normalizePrint(mixed $print): ?array
+    {
+        if (!is_array($print)) {
+            return null;
+        }
+        $orientation = in_array($print['orientation'] ?? null, ['portrait', 'landscape'], true) ? $print['orientation'] : null;
+        $fit = ($print['fitToWidth'] ?? false) === true;
+        $footer = null;
+        if (is_array($print['footer'] ?? null)) {
+            $slot = static fn (string $k): string => is_string($print['footer'][$k] ?? null) ? $print['footer'][$k] : '';
+            $footer = ['left' => $slot('left'), 'center' => $slot('center'), 'right' => $slot('right')];
+            if ($footer['left'] === '' && $footer['center'] === '' && $footer['right'] === '') {
+                $footer = null;
+            }
+        }
+        if ($orientation === null && ! $fit && $footer === null) {
+            return null;
+        }
+
+        return ['orientation' => $orientation, 'fitToWidth' => $fit, 'footer' => $footer];
     }
 
     /** @param  array<string,array<string,mixed>>  $map */

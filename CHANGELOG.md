@@ -4,6 +4,25 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-10-19
+
+### Added
+
+- **`print`: how a sheet prints.** `orientation` (`portrait` | `landscape`),
+  `fitToWidth: true` (scale to one page wide, as many tall as needed) and
+  `footer: {left, center, right}`, where `{page}` and `{pages}` print the page
+  number and count, as Excel's own `&P` / `&N` codes; a literal `&` is escaped.
+  Agent-built workbooks reviewed for a board printed across two pages with no
+  way to ask otherwise.
+- **`rowHeights`**: pixels keyed by 1-based row number, the unit `columnWidths`
+  uses: `{"1": 32}`. A height on a row with no cells writes that row.
+- Both are read back by `describe()` / `read()`, validated with hints, and
+  published in the schema. **Nothing to do**: a workbook without them is
+  byte-identical. A sheet carrying either is diffed as authored form (replaced
+  whole), as any sheet key the granular ops do not address.
+- Lands with `@particle-academy/holy-sheet` 2.7.0 and `fancy-holy-sheet` 0.6.0;
+  parity holds (new `printSetup` fixture in both ports).
+
 ## [2.5.0] — 2026-10-11
 
 ### Fixed

@@ -13,6 +13,8 @@ final class Sheet
      * @param  array<string,Cell>  $cells  A1-keyed sparse map
      * @param  list<MergedRegion>  $mergedRegions
      * @param  array<int,float>  $columnWidths  0-based col index → pixels
+     * @param  array<int,float>  $rowHeights  1-based row number → pixels
+     * @param  array{orientation: ?string, fitToWidth: bool, footer: ?array{left: string, center: string, right: string}}|null  $print
      */
     public function __construct(
         public readonly string $name,
@@ -21,6 +23,8 @@ final class Sheet
         public readonly array $columnWidths = [],
         public readonly int $frozenRows = 0,
         public readonly int $frozenCols = 0,
+        public readonly array $rowHeights = [],
+        public readonly ?array $print = null,
     ) {}
 
     /** @return array<int,array<string,Cell>>  rowIndex => [colLetter => Cell] */

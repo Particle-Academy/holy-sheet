@@ -61,6 +61,19 @@ final class WorkbookSchema
         }
         if ($sheet->frozenRows > 0) $out['frozenRows'] = $sheet->frozenRows;
         if ($sheet->frozenCols > 0) $out['frozenCols'] = $sheet->frozenCols;
+        if ($sheet->rowHeights !== []) {
+            // Whole pixels come back as integers: 24pt is the 32 that was written.
+            $out['rowHeights'] = array_map(static fn (float $px) => floor($px) === $px ? (int) $px : $px, $sheet->rowHeights);
+        }
+        if ($sheet->print !== null) {
+            $print = [];
+            if ($sheet->print['orientation'] !== null) $print['orientation'] = $sheet->print['orientation'];
+            if ($sheet->print['fitToWidth']) $print['fitToWidth'] = true;
+            if ($sheet->print['footer'] !== null) {
+                $print['footer'] = array_filter($sheet->print['footer'], static fn (string $s) => $s !== '');
+            }
+            $out['print'] = $print;
+        }
         return $out;
     }
 

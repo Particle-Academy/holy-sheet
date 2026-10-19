@@ -36,7 +36,7 @@ declare(strict_types=1);
  * copies being out of sync — a worse failure than the one being prevented,
  * because it teaches people to distrust the test.
  */
-const SHARED_SCHEMA_SHA256 = '01d701da2cc469dbf10d64bc2ddac17e12487c2304cfa93b3262711702b8fad4';
+const SHARED_SCHEMA_SHA256 = 'e8c8efe9bdb0776a7c106a94db16a8d18c3097f751093307ad355dce4729bd90';
 
 function schemaPath(): string
 {

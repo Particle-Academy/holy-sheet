@@ -47,7 +47,98 @@ final class WorksheetParser
             columnWidths: $columnWidths,
             frozenRows: $frozenRows,
             frozenCols: $frozenCols,
+            rowHeights: self::parseRowHeights($xml),
+            print: self::parsePrint($xml),
         );
+    }
+
+    /**
+     * Rows with a CUSTOM height, in pixels (points / 0.75). A row whose height
+     * Excel merely cached from its content carries no customHeight and is not a
+     * choice anyone made, so it is not read back as one.
+     *
+     * @return array<int,float>
+     */
+    private static function parseRowHeights(SimpleXMLElement $xml): array
+    {
+        $out = [];
+        if (!isset($xml->sheetData) || !$xml->sheetData->row) {
+            return $out;
+        }
+        foreach ($xml->sheetData->row as $row) {
+            $r = (int) $row['r'];
+            $custom = (string) $row['customHeight'];
+            if ($r > 0 && isset($row['ht']) && ($custom === '1' || $custom === 'true')) {
+                $out[$r] = round(((float) $row['ht']) / 0.75, 2);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Print setup: orientation, fit-to-one-page-wide, and the odd-page footer.
+     *
+     * @return array{orientation: ?string, fitToWidth: bool, footer: ?array{left: string, center: string, right: string}}|null
+     */
+    private static function parsePrint(SimpleXMLElement $xml): ?array
+    {
+        $fitToPage = isset($xml->sheetPr->pageSetUpPr) && in_array((string) $xml->sheetPr->pageSetUpPr['fitToPage'], ['1', 'true'], true);
+        $setup = $xml->pageSetup ?? null;
+        $orientation = $setup !== null && in_array((string) $setup['orientation'], ['portrait', 'landscape'], true) ? (string) $setup['orientation'] : null;
+        $fit = $fitToPage && $setup !== null && (string) $setup['fitToWidth'] === '1' && in_array((string) $setup['fitToHeight'], ['0', ''], true);
+        $footer = isset($xml->headerFooter->oddFooter) ? self::parseFooterCodes((string) $xml->headerFooter->oddFooter) : null;
+
+        if ($orientation === null && ! $fit && $footer === null) {
+            return null;
+        }
+
+        return ['orientation' => $orientation, 'fitToWidth' => $fit, 'footer' => $footer];
+    }
+
+    /**
+     * Excel header/footer codes back to three slots: &L / &C / &R open a section,
+     * &P / &N become {page} / {pages}, && is a literal "&". Formatting codes
+     * (&"font,style", a size like &12, &B &I &U &S &X &Y, &K colour) are dropped:
+     * the slots carry text, not typography. Text before any section code is the
+     * centre section, as Excel reads it.
+     *
+     * @return array{left: string, center: string, right: string}|null
+     */
+    public static function parseFooterCodes(string $codes): ?array
+    {
+        $slots = ['left' => '', 'center' => '', 'right' => ''];
+        $current = 'center';
+        $len = strlen($codes);
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $codes[$i];
+            if ($ch !== '&' || $i + 1 >= $len) {
+                $slots[$current] .= $ch;
+
+                continue;
+            }
+            $next = $codes[++$i];
+            if ($next === '&') {
+                $slots[$current] .= '&';
+            } elseif ($next === 'L' || $next === 'C' || $next === 'R') {
+                $current = ['L' => 'left', 'C' => 'center', 'R' => 'right'][$next];
+            } elseif ($next === 'P') {
+                $slots[$current] .= '{page}';
+            } elseif ($next === 'N') {
+                $slots[$current] .= '{pages}';
+            } elseif ($next === '"') {
+                $close = strpos($codes, '"', $i + 1);
+                $i = $close === false ? $len : $close;
+            } elseif (ctype_digit($next)) {
+                while ($i + 1 < $len && ctype_digit($codes[$i + 1])) {
+                    $i++;
+                }
+            } elseif ($next === 'K') {
+                $i = min($len - 1, $i + 6);
+            }
+        }
+
+        return $slots['left'] === '' && $slots['center'] === '' && $slots['right'] === '' ? null : $slots;
     }
 
     /**

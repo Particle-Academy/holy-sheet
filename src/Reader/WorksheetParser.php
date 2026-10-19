@@ -79,7 +79,7 @@ final class WorksheetParser
     /**
      * Print setup: orientation, fit-to-one-page-wide, and the odd-page footer.
      *
-     * @return array{orientation: ?string, fitToWidth: bool, footer: ?array{left: string, center: string, right: string}}|null
+     * @return array{orientation: ?string, fitToWidth: bool, fitToPage: bool, footer: ?array{left: string, center: string, right: string}}|null
      */
     private static function parsePrint(SimpleXMLElement $xml): ?array
     {
@@ -87,13 +87,14 @@ final class WorksheetParser
         $setup = $xml->pageSetup ?? null;
         $orientation = $setup !== null && in_array((string) $setup['orientation'], ['portrait', 'landscape'], true) ? (string) $setup['orientation'] : null;
         $fit = $fitToPage && $setup !== null && (string) $setup['fitToWidth'] === '1' && in_array((string) $setup['fitToHeight'], ['0', ''], true);
+        $page = $fitToPage && $setup !== null && (string) $setup['fitToWidth'] === '1' && (string) $setup['fitToHeight'] === '1';
         $footer = isset($xml->headerFooter->oddFooter) ? self::parseFooterCodes((string) $xml->headerFooter->oddFooter) : null;
 
-        if ($orientation === null && ! $fit && $footer === null) {
+        if ($orientation === null && ! $fit && ! $page && $footer === null) {
             return null;
         }
 
-        return ['orientation' => $orientation, 'fitToWidth' => $fit, 'footer' => $footer];
+        return ['orientation' => $orientation, 'fitToWidth' => $fit, 'fitToPage' => $page, 'footer' => $footer];
     }
 
     /**

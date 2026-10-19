@@ -227,6 +227,10 @@ final class Validator
                     $errors[] = $this->error("{$path}.print.fitToWidth", 'boolean', $this->typeOf($print['fitToWidth']), $print['fitToWidth'],
                         'true scales the sheet to one page wide when printed.');
                 }
+                if (isset($print['fitToPage']) && !is_bool($print['fitToPage'])) {
+                    $errors[] = $this->error("{$path}.print.fitToPage", 'boolean', $this->typeOf($print['fitToPage']), $print['fitToPage'],
+                        'true scales the sheet onto ONE page, wide and tall: a one-page summary with a chart prints whole.');
+                }
                 if (isset($print['footer'])) {
                     if (!is_array($print['footer'])) {
                         $errors[] = $this->error("{$path}.print.footer", 'object {left?, center?, right?}', $this->typeOf($print['footer']), $print['footer'],
@@ -312,6 +316,9 @@ final class Validator
                     } elseif (isset($s['color']) && (!is_string($s['color']) || preg_match('/^#[0-9A-Fa-f]{6}$/', $s['color']) !== 1)) {
                         $errors[] = $this->error("{$at}.series[{$j}].color", '#RRGGBB', $this->typeOf($s['color']), $s['color'], 'A hex colour, like "#1F3A5F".');
                     }
+                    if (is_array($s) && isset($s['points'])) {
+                        $errors = array_merge($errors, $this->validatePoints($s['points'], "{$at}.series[{$j}].points", ChartRange::parse($s['values'] ?? null, $sheetName)));
+                    }
                 }
             }
             if (isset($chart['categories']) && ChartRange::parse($chart['categories'], $sheetName) === null) {
@@ -338,6 +345,30 @@ final class Validator
                     $errors[] = $this->error("{$at}.{$key}", 'boolean', $this->typeOf($chart[$key]), $chart[$key],
                         $key === 'dataLabels' ? 'true prints each value on the chart.' : 'Defaults to on for several series or a pie.');
                 }
+            }
+        }
+
+        return $errors;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function validatePoints(mixed $points, string $at, ?ChartRange $values): array
+    {
+        if (! is_array($points) || ($points !== [] && ! array_is_list($points))) {
+            return [$this->error($at, 'a list of points', $this->typeOf($points), $points,
+                'Colour single points: [{"index": 2, "color": "#C2410C"}], index 0-based within values.')];
+        }
+        $count = $values === null ? 0 : count($values->addresses());
+        $errors = [];
+        foreach ($points as $k => $p) {
+            $index = is_array($p) ? ($p['index'] ?? null) : null;
+            $color = is_array($p) ? ($p['color'] ?? null) : null;
+            if (! is_int($index) || $index < 0 || $index >= $count) {
+                $errors[] = $this->error("{$at}[{$k}].index", 'an index within values (0 to '.max(0, $count - 1).')', $this->typeOf($index), $index,
+                    'The 0-based position of the point in its values range: "B5:B7" has points 0, 1 and 2.');
+            }
+            if (! is_string($color) || preg_match('/^#[0-9A-Fa-f]{6}$/', $color) !== 1) {
+                $errors[] = $this->error("{$at}[{$k}].color", '#RRGGBB', $this->typeOf($color), $color, 'A hex colour, like "#C2410C".');
             }
         }
 

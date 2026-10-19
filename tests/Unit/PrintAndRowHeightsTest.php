@@ -109,3 +109,20 @@ it('publishes both in the schema', function () {
     expect($sheet)->toHaveKeys(['rowHeights', 'print'])
         ->and(json_encode($sheet['print']))->toContain('{pages}');
 });
+
+it('fits a short sheet onto one page, so a chart below the table is never cut', function () {
+    // A board summary is a table, notes and a chart. Printed one page wide it
+    // is as tall as it needs, and the page break fell through the chart in
+    // three of four agent-built workbooks reviewed. fitToPage scales it all
+    // onto one sheet of paper.
+    $xml = prSheetXml(prSheet(['print' => ['orientation' => 'portrait', 'fitToPage' => true]]));
+
+    expect($xml)->toContain('<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>')
+        ->and($xml)->toContain('<pageSetup orientation="portrait" fitToWidth="1" fitToHeight="1"/>');
+
+    $read = prRead(prSheet(['print' => ['fitToPage' => true, 'footer' => ['right' => 'Page {page} of {pages}']]]))['sheets'][0];
+    expect($read['print'])->toBe(['fitToPage' => true, 'footer' => ['right' => 'Page {page} of {pages}']]);
+
+    expect(array_column(Agent::validate(prSheet(['print' => ['fitToPage' => 1]])), 'path'))->toBe(['sheets[0].print.fitToPage'])
+        ->and(json_encode(Agent::toolDefinition()['definitions']['Sheet']['properties']['print']))->toContain('fitToPage');
+});

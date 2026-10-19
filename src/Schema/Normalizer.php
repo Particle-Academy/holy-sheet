@@ -153,6 +153,35 @@ final class Normalizer
      * @param  array<string, Cell>  $cells
      * @return list<array<string, mixed>>
      */
+    /**
+     * A series' coloured points: index within its values -> colour, by index.
+     * An index outside the values or a colour that is not #RRGGBB is dropped;
+     * a repeated index keeps its last colour.
+     *
+     * @return list<array{index: int, color: string}>
+     */
+    public static function normalizePoints(mixed $points, int $count): array
+    {
+        if (! is_array($points)) {
+            return [];
+        }
+        $byIndex = [];
+        foreach ($points as $p) {
+            $index = is_array($p) ? ($p['index'] ?? null) : null;
+            $color = is_array($p) ? ($p['color'] ?? null) : null;
+            if (is_int($index) && $index >= 0 && $index < $count && is_string($color) && preg_match('/^#([0-9A-Fa-f]{6})$/', $color, $m) === 1) {
+                $byIndex[$index] = strtoupper($m[1]);
+            }
+        }
+        ksort($byIndex);
+        $out = [];
+        foreach ($byIndex as $index => $color) {
+            $out[] = ['index' => $index, 'color' => $color];
+        }
+
+        return $out;
+    }
+
     public static function normalizeCharts(mixed $charts, string $sheetName, array $cells): array
     {
         if (! is_array($charts)) {
@@ -178,7 +207,7 @@ final class Normalizer
                     continue;
                 }
                 $color = is_string($s['color'] ?? null) && preg_match('/^#([0-9A-Fa-f]{6})$/', $s['color'], $m) === 1 ? strtoupper($m[1]) : null;
-                $series[] = ['name' => is_string($s['name'] ?? null) ? $s['name'] : null, 'values' => $values, 'color' => $color];
+                $series[] = ['name' => is_string($s['name'] ?? null) ? $s['name'] : null, 'values' => $values, 'color' => $color, 'points' => self::normalizePoints($s['points'] ?? null, count($values->addresses()))];
             }
             if ($series === []) {
                 continue;
@@ -238,7 +267,7 @@ final class Normalizer
     /**
      * `print`, normalised; null when it asks for nothing.
      *
-     * @return array{orientation: ?string, fitToWidth: bool, footer: ?array{left: string, center: string, right: string}}|null
+     * @return array{orientation: ?string, fitToWidth: bool, fitToPage: bool, footer: ?array{left: string, center: string, right: string}}|null
      */
     public static function normalizePrint(mixed $print): ?array
     {
@@ -247,6 +276,7 @@ final class Normalizer
         }
         $orientation = in_array($print['orientation'] ?? null, ['portrait', 'landscape'], true) ? $print['orientation'] : null;
         $fit = ($print['fitToWidth'] ?? false) === true;
+        $page = ($print['fitToPage'] ?? false) === true;
         $footer = null;
         if (is_array($print['footer'] ?? null)) {
             $slot = static fn (string $k): string => is_string($print['footer'][$k] ?? null) ? $print['footer'][$k] : '';
@@ -255,11 +285,11 @@ final class Normalizer
                 $footer = null;
             }
         }
-        if ($orientation === null && ! $fit && $footer === null) {
+        if ($orientation === null && ! $fit && ! $page && $footer === null) {
             return null;
         }
 
-        return ['orientation' => $orientation, 'fitToWidth' => $fit, 'footer' => $footer];
+        return ['orientation' => $orientation, 'fitToWidth' => $fit, 'fitToPage' => $page, 'footer' => $footer];
     }
 
     /** @param  array<string,array<string,mixed>>  $map */

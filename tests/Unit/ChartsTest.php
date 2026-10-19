@@ -163,3 +163,33 @@ it('publishes charts in the schema', function () {
     expect($sheet)->toHaveKey('charts')
         ->and(json_encode($sheet['charts']))->toContain('categories');
 });
+
+it('colours single points, to make the finding stand out', function () {
+    // One colour for every bar is a chart that does not say which bar matters;
+    // reviewers marked charts down for it on every comparison brief.
+    $chart = [
+        'type' => 'bar',
+        'categories' => 'A5:A7',
+        'series' => [['name' => 'Revenue', 'values' => 'B5:B7', 'color' => '#94A3B8', 'points' => [['index' => 2, 'color' => '#C2410C']]]],
+        'position' => ['from' => 'E2', 'to' => 'L18'],
+    ];
+    $xml = chParts(chWorkbook([$chart]))['xl/charts/chart1.xml'];
+
+    expect($xml)->toContain('<c:dPt><c:idx val="2"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/><c:spPr><a:solidFill><a:srgbClr val="C2410C"/></a:solidFill></c:spPr></c:dPt>')
+        // dPt sits after the series' own fill and before its categories.
+        ->and(strpos($xml, '<c:dPt>'))->toBeGreaterThan(strpos($xml, 'val="94A3B8"'))
+        ->and(strpos($xml, '<c:dPt>'))->toBeLessThan(strpos($xml, '<c:cat>'));
+
+    $pie = chParts(chWorkbook([[...$chart, 'type' => 'pie']]))['xl/charts/chart1.xml'];
+    expect($pie)->toContain('<c:dPt><c:idx val="2"/><c:bubble3D val="0"/><c:spPr><a:solidFill><a:srgbClr val="C2410C"/></a:solidFill></c:spPr></c:dPt>');
+
+    $path = tempnam(sys_get_temp_dir(), 'ch').'.xlsx';
+    Agent::write(chWorkbook([$chart]), $path);
+    $read = Agent::describe($path)['sheets'][0]['charts'][0];
+    @unlink($path);
+    expect($read['series'][0]['points'])->toBe([['index' => 2, 'color' => '#C2410C']]);
+
+    $paths = array_column(Agent::validate(chWorkbook([[...$chart, 'series' => [['values' => 'B5:B7', 'points' => [['index' => 3, 'color' => '#C2410C'], ['index' => 0, 'color' => 'red']]]]]])), 'path');
+    expect($paths)->toContain('sheets[0].charts[0].series[0].points[0].index')
+        ->and($paths)->toContain('sheets[0].charts[0].series[0].points[1].color');
+});

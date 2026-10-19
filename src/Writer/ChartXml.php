@@ -135,7 +135,19 @@ final class ChartXml
         $cat = $chart['categories'] !== null ? '<c:cat>'.self::strRef($chart['categories'], $workbook).'</c:cat>' : '';
         $smooth = $type === 'line' ? '<c:smooth val="0"/>' : '';
 
-        return '<c:ser><c:idx val="'.$i.'"/><c:order val="'.$i.'"/>'.$name.$fill.$invert.$marker
+        // A coloured point (dPt) follows the series' own fill, invert and
+        // marker, and precedes its categories (CT_BarSer / CT_LineSer / CT_PieSer).
+        $points = '';
+        foreach ($s['points'] ?? [] as $p) {
+            $solid = '<a:solidFill><a:srgbClr val="'.$p['color'].'"/></a:solidFill>';
+            $points .= '<c:dPt><c:idx val="'.$p['index'].'"/>'.match ($type) {
+                'line' => '<c:marker><c:symbol val="circle"/><c:size val="6"/><c:spPr>'.$solid.'<a:ln>'.$solid.'</a:ln></c:spPr></c:marker><c:bubble3D val="0"/>',
+                'pie' => '<c:bubble3D val="0"/><c:spPr>'.$solid.'</c:spPr>',
+                default => '<c:invertIfNegative val="0"/><c:bubble3D val="0"/><c:spPr>'.$solid.'</c:spPr>',
+            }.'</c:dPt>';
+        }
+
+        return '<c:ser><c:idx val="'.$i.'"/><c:order val="'.$i.'"/>'.$name.$fill.$invert.$marker.$points
             .$cat.'<c:val>'.self::numRef($s['values'], $workbook).'</c:val>'.$smooth.'</c:ser>';
     }
 

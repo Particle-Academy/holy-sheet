@@ -268,12 +268,14 @@ final class XlsxWriter
         // Print setup. CT_Worksheet orders these: sheetPr first of all, then
         // pageSetup and headerFooter after mergeCells and before legacyDrawing.
         $print = $sheet->print;
-        $sheetPrXml = ($print['fitToWidth'] ?? false) ? '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' : '';
+        $fits = ($print['fitToWidth'] ?? false) || ($print['fitToPage'] ?? false);
+        $sheetPrXml = $fits ? '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' : '';
         $pageSetupXml = '';
-        if ($print !== null && ($print['orientation'] !== null || $print['fitToWidth'])) {
+        if ($print !== null && ($print['orientation'] !== null || $fits)) {
             $pageSetupXml = '<pageSetup'
                 .($print['orientation'] !== null ? ' orientation="'.$print['orientation'].'"' : '')
-                .($print['fitToWidth'] ? ' fitToWidth="1" fitToHeight="0"' : '')
+                // fitToPage: one page wide AND tall. fitToWidth: one wide, as tall as it needs.
+                .($print['fitToPage'] ? ' fitToWidth="1" fitToHeight="1"' : ($print['fitToWidth'] ? ' fitToWidth="1" fitToHeight="0"' : ''))
                 .'/>';
         }
         $headerFooterXml = ($print['footer'] ?? null) !== null

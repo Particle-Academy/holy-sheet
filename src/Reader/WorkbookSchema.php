@@ -70,6 +70,7 @@ final class WorkbookSchema
             $print = [];
             if ($sheet->print['orientation'] !== null) $print['orientation'] = $sheet->print['orientation'];
             if ($sheet->print['fitToWidth']) $print['fitToWidth'] = true;
+            if ($sheet->print['fitToPage']) $print['fitToPage'] = true;
             if ($sheet->print['footer'] !== null) {
                 $print['footer'] = array_filter($sheet->print['footer'], static fn (string $s) => $s !== '');
             }
@@ -99,6 +100,9 @@ final class WorkbookSchema
             if ($s['name'] !== null) $series['name'] = $s['name'];
             $series['values'] = $s['values']->toSchema($sheetName);
             if ($s['color'] !== null) $series['color'] = '#'.$s['color'];
+            if (($s['points'] ?? []) !== []) {
+                $series['points'] = array_map(static fn (array $p): array => ['index' => $p['index'], 'color' => '#'.$p['color']], $s['points']);
+            }
             return $series;
         }, $chart['series']);
         $out['position'] = [

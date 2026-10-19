@@ -96,7 +96,7 @@ final class ChartParser
                 $catRef = self::formula($ser, 'cat');
                 $categories = $catRef !== null ? ChartRange::parse($catRef, $sheetName) : null;
             }
-            $series[] = ['name' => self::seriesName($ser), 'values' => $values, 'color' => self::seriesColor($ser)];
+            $series[] = ['name' => self::seriesName($ser), 'values' => $values, 'color' => self::seriesColor($ser), 'points' => self::points($ser)];
         }
         if ($series === []) {
             return null;
@@ -222,6 +222,32 @@ final class ChartParser
         $cached = $tx->getElementsByTagNameNS(self::NS_C, 'v')->item(0);
 
         return $cached?->textContent;
+    }
+
+    /**
+     * Coloured points (c:dPt): the index and the first sRGB colour inside it,
+     * by index; a point with no readable colour is skipped.
+     *
+     * @return list<array{index: int, color: string}>
+     */
+    private static function points(DOMElement $ser): array
+    {
+        $byIndex = [];
+        foreach (self::children($ser, 'dPt') as $dPt) {
+            $idx = self::val($dPt, 'idx');
+            $clr = $dPt->getElementsByTagNameNS(self::NS_A, 'srgbClr')->item(0);
+            $color = $clr instanceof DOMElement ? strtoupper($clr->getAttribute('val')) : '';
+            if ($idx !== null && ctype_digit($idx) && preg_match('/^[0-9A-F]{6}$/', $color) === 1) {
+                $byIndex[(int) $idx] = $color;
+            }
+        }
+        ksort($byIndex);
+        $out = [];
+        foreach ($byIndex as $index => $color) {
+            $out[] = ['index' => $index, 'color' => $color];
+        }
+
+        return $out;
     }
 
     private static function seriesColor(DOMElement $ser): ?string

@@ -14,7 +14,7 @@ final class Sheet
      * @param  list<MergedRegion>  $mergedRegions
      * @param  array<int,float>  $columnWidths  0-based col index → pixels
      * @param  array<int,float>  $rowHeights  1-based row number → pixels
-     * @param  array{orientation: ?string, fitToWidth: bool, footer: ?array{left: string, center: string, right: string}}|null  $print
+     * @param  array{orientation: ?string, fitToWidth: bool, fitToPage: bool, footer: ?array{left: string, center: string, right: string}}|null  $print
      */
     public function __construct(
         public readonly string $name,

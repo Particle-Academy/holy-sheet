@@ -88,7 +88,10 @@ final class ChartXml
             default => '<c:barChart><c:barDir val="'.($type === 'bar' ? 'bar' : 'col').'"/><c:grouping val="clustered"/><c:varyColors val="0"/>'
                 .$series.$labels.'<c:gapWidth val="80"/><c:axId val="10"/><c:axId val="20"/></c:barChart>',
         };
-        $axes = $type === 'pie' ? '' : self::axes($type === 'bar', $chart['format']);
+        // A bar starts at zero: left to the renderer, values like 90-97 get an
+        // axis from ~88 and a three-point gap reads as a collapse.
+        $zeroBase = $type !== 'line' && self::nonNegative($chart, $workbook);
+        $axes = $type === 'pie' ? '' : self::axes($type === 'bar', $chart['format'], $zeroBase);
 
         $legend = $chart['legend'] ?? (count($chart['series']) > 1 || $type === 'pie');
         $title = $chart['title'] !== null
@@ -218,7 +221,21 @@ final class ChartXml
             .'</c:dLbls>';
     }
 
-    private static function axes(bool $horizontal, ?string $format): string
+    /** Every plotted (numeric) value is zero or more. @param array<string, mixed> $chart */
+    private static function nonNegative(array $chart, Workbook $workbook): bool
+    {
+        foreach ($chart['series'] as $s) {
+            foreach (self::values($s['values'], $workbook) as $v) {
+                if ((is_int($v) || is_float($v)) && $v < 0) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static function axes(bool $horizontal, ?string $format, bool $zeroBase = false): string
     {
         $catPos = $horizontal ? 'l' : 'b';
         $valPos = $horizontal ? 'b' : 'l';
@@ -232,7 +249,7 @@ final class ChartXml
             .'<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="low"/>'
             .'<c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:ln></c:spPr>'
             .'<c:crossAx val="20"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>'
-            .'<c:valAx><c:axId val="20"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+            .'<c:valAx><c:axId val="20"/><c:scaling><c:orientation val="minMax"/>'.($zeroBase ? '<c:min val="0"/>' : '').'</c:scaling>'
             .'<c:delete val="0"/><c:axPos val="'.$valPos.'"/>'
             .'<c:majorGridlines><c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="E5E7EB"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>'
             .$numFmt

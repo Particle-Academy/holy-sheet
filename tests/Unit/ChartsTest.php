@@ -193,3 +193,14 @@ it('colours single points, to make the finding stand out', function () {
     expect($paths)->toContain('sheets[0].charts[0].series[0].points[0].index')
         ->and($paths)->toContain('sheets[0].charts[0].series[0].points[1].color');
 });
+
+it('starts a bar axis at zero, unless a value is negative or it is a line', function () {
+    // Left to the renderer, an axis over 90-97 starts near 88 and a three-point
+    // gap reads as a collapse; reviewers gated a deck for exactly that.
+    $high = chWorkbook([[...CH_REVENUE, 'series' => [['values' => 'B5:B7']]]]);
+    $high['sheets'][0]['cells'] = [...$high['sheets'][0]['cells'], 'B5' => 96.1, 'B6' => 93.8, 'B7' => 90.7];
+
+    expect(chParts($high)['xl/charts/chart1.xml'])->toContain('<c:scaling><c:orientation val="minMax"/><c:min val="0"/></c:scaling>')
+        ->and(chParts(chWorkbook([[...CH_REVENUE, 'series' => [['values' => 'C5:C7']]]]))['xl/charts/chart1.xml'])->not->toContain('<c:min val="0"/>')
+        ->and(chParts(chWorkbook([[...CH_REVENUE, 'type' => 'line']]))['xl/charts/chart1.xml'])->not->toContain('<c:min val="0"/>');
+});

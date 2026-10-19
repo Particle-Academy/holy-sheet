@@ -25,7 +25,23 @@ final class Sheet
         public readonly int $frozenCols = 0,
         public readonly array $rowHeights = [],
         public readonly ?array $print = null,
+        /**
+         * Native charts, normalised: list of {type, title, categories: ?ChartRange,
+         * series: list<{name: ?string, values: ChartRange, color: ?string}>,
+         * from: [col, row], to: [col, row] (both 0-based), legend: ?bool,
+         * dataLabels: bool, format: ?string}.
+         *
+         * @var list<array<string, mixed>>
+         */
+        public readonly array $charts = [],
     ) {}
+
+    /** @param list<array<string, mixed>> $charts */
+    public function withCharts(array $charts): self
+    {
+        return new self($this->name, $this->cells, $this->mergedRegions, $this->columnWidths,
+            $this->frozenRows, $this->frozenCols, $this->rowHeights, $this->print, $charts);
+    }
 
     /** @return array<int,array<string,Cell>>  rowIndex => [colLetter => Cell] */
     public function rows(): array

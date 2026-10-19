@@ -58,6 +58,15 @@ final class XlsxWriter
             if ($sheet->hasComments()) $sheetsWithComments[] = $i;
         }
 
+        // Charts are numbered across the workbook in sheet order; a sheet's
+        // drawing shares its sheet's number, as its vmlDrawing does.
+        $firstChart = [];
+        $next = 1;
+        foreach ($workbook->sheets as $i => $sheet) {
+            $firstChart[$i] = $next;
+            $next += count($sheet->charts);
+        }
+
         $zip->addFromString('[Content_Types].xml', $this->contentTypesXml($workbook, $sheetsWithComments));
         $zip->addFromString('_rels/.rels', $this->rootRelsXml());
         $zip->addFromString('xl/workbook.xml', $this->workbookXml($workbook));
@@ -70,10 +79,19 @@ final class XlsxWriter
             $sheetNum = $i + 1;
             $zip->addFromString("xl/worksheets/sheet{$sheetNum}.xml", $sheetXmls[$i]);
 
+            if ($sheet->hasComments() || $sheet->charts !== []) {
+                $zip->addFromString("xl/worksheets/_rels/sheet{$sheetNum}.xml.rels", $this->sheetRelsXml($sheetNum, $sheet->hasComments(), $sheet->charts !== []));
+            }
             if ($sheet->hasComments()) {
-                $zip->addFromString("xl/worksheets/_rels/sheet{$sheetNum}.xml.rels", $this->sheetRelsXml($sheetNum));
                 $zip->addFromString("xl/comments{$sheetNum}.xml", $this->commentsXml($sheet));
                 $zip->addFromString("xl/drawings/vmlDrawing{$sheetNum}.vml", $this->vmlDrawingXml($sheet));
+            }
+            if ($sheet->charts !== []) {
+                $zip->addFromString("xl/drawings/drawing{$sheetNum}.xml", ChartXml::drawing($sheet->charts, $firstChart[$i]));
+                $zip->addFromString("xl/drawings/_rels/drawing{$sheetNum}.xml.rels", ChartXml::drawingRels($sheet->charts, $firstChart[$i]));
+                foreach ($sheet->charts as $k => $chart) {
+                    $zip->addFromString('xl/charts/chart'.($firstChart[$i] + $k).'.xml', ChartXml::chart($chart, $workbook));
+                }
             }
         }
 
@@ -102,6 +120,19 @@ final class XlsxWriter
         foreach ($sheetsWithComments as $i) {
             $n = $i + 1;
             $overrides .= "<Override PartName=\"/xl/comments{$n}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml\"/>";
+        }
+
+        $chartNum = 1;
+        foreach ($workbook->sheets as $i => $sheet) {
+            if ($sheet->charts === []) {
+                continue;
+            }
+            $n = $i + 1;
+            $overrides .= "<Override PartName=\"/xl/drawings/drawing{$n}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawing+xml\"/>";
+            foreach ($sheet->charts as $_) {
+                $overrides .= "<Override PartName=\"/xl/charts/chart{$chartNum}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/>";
+                $chartNum++;
+            }
         }
 
         $defaults = '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
@@ -154,13 +185,30 @@ final class XlsxWriter
             .$rels.'</Relationships>';
     }
 
-    private function sheetRelsXml(int $sheetNum): string
+    /**
+     * A sheet's rels. Comments keep rId1 (vml) and rId2 (comments), as they
+     * always have; the chart drawing takes the next id.
+     */
+    private function sheetRelsXml(int $sheetNum, bool $comments, bool $charts): string
     {
+        $rels = '';
+        if ($comments) {
+            $rels .= '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing'.$sheetNum.'.vml"/>'
+                .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments'.$sheetNum.'.xml"/>';
+        }
+        if ($charts) {
+            $rels .= '<Relationship Id="'.self::drawingRelId($comments).'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing'.$sheetNum.'.xml"/>';
+        }
+
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing'.$sheetNum.'.vml"/>'
-            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments'.$sheetNum.'.xml"/>'
+            .$rels
             .'</Relationships>';
+    }
+
+    private static function drawingRelId(bool $comments): string
+    {
+        return $comments ? 'rId3' : 'rId1';
     }
 
     private function sheetXml(Sheet $sheet, StylesRegistry $styles): string
@@ -241,6 +289,7 @@ final class XlsxWriter
             .$mergesXml
             .$pageSetupXml
             .$headerFooterXml
+            .($sheet->charts !== [] ? '<drawing r:id="'.self::drawingRelId($sheet->hasComments()).'"/>' : '')
             .$legacyDrawing
             .'</worksheet>';
     }

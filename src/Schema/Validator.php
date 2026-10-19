@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace HolySheet\Schema;
 
 use HolySheet\Exceptions\SchemaException;
+use HolySheet\Workbook\CellAddress;
+use HolySheet\Workbook\ChartRange;
 
 /**
  * Schema validator for Holy Sheet input.
@@ -207,6 +209,10 @@ final class Validator
             }
         }
 
+        if (isset($sheet['charts'])) {
+            $errors = array_merge($errors, $this->validateCharts($sheet['charts'], $path, (string) ($sheet['name'] ?? '')));
+        }
+
         if (isset($sheet['print'])) {
             $print = $sheet['print'];
             if (!is_array($print)) {
@@ -276,6 +282,68 @@ final class Validator
     }
 
     /** @param  mixed  $value */
+    /** @return list<array{path:string,expected:string,got:string,value:mixed,hint:string}> */
+    private function validateCharts(mixed $charts, string $path, string $sheetName): array
+    {
+        if (!is_array($charts) || ($charts !== [] && !array_is_list($charts))) {
+            return [$this->error("{$path}.charts", 'a list of charts', $this->typeOf($charts), $charts,
+                'charts is a list: [{"type": "column", "categories": "A5:A7", "series": [{"name": "Revenue", "values": "B5:B7"}]}].')];
+        }
+        $errors = [];
+        foreach ($charts as $i => $chart) {
+            $at = "{$path}.charts[{$i}]";
+            if (!is_array($chart)) {
+                $errors[] = $this->error($at, 'object', $this->typeOf($chart), $chart, 'A chart is an object with a type and series.');
+                continue;
+            }
+            if (!in_array($chart['type'] ?? null, Normalizer::CHART_TYPES, true)) {
+                $errors[] = $this->error("{$at}.type", 'one of: '.implode(', ', Normalizer::CHART_TYPES), $this->typeOf($chart['type'] ?? null), $chart['type'] ?? null,
+                    'column compares values across categories; bar does the same horizontally (long labels); line shows change over time; pie shows parts of one whole.');
+            }
+            $series = $chart['series'] ?? null;
+            if (!is_array($series) || $series === [] || !array_is_list($series)) {
+                $errors[] = $this->error("{$at}.series", 'a non-empty list of series', $this->typeOf($series), $series,
+                    'Each series names the range it plots: [{"name": "Revenue", "values": "B5:B7"}].');
+            } else {
+                foreach ($series as $j => $s) {
+                    if (!is_array($s) || ChartRange::parse($s['values'] ?? null, $sheetName) === null) {
+                        $errors[] = $this->error("{$at}.series[{$j}].values", 'a cell range like "B5:B7"', $this->typeOf(is_array($s) ? ($s['values'] ?? null) : $s), is_array($s) ? ($s['values'] ?? null) : $s,
+                            'A range of cells: "B5:B7" on this sheet, or "\'Other sheet\'!B5:B7".');
+                    } elseif (isset($s['color']) && (!is_string($s['color']) || preg_match('/^#[0-9A-Fa-f]{6}$/', $s['color']) !== 1)) {
+                        $errors[] = $this->error("{$at}.series[{$j}].color", '#RRGGBB', $this->typeOf($s['color']), $s['color'], 'A hex colour, like "#1F3A5F".');
+                    }
+                }
+            }
+            if (isset($chart['categories']) && ChartRange::parse($chart['categories'], $sheetName) === null) {
+                $errors[] = $this->error("{$at}.categories", 'a cell range like "A5:A7"', $this->typeOf($chart['categories']), $chart['categories'],
+                    'The labels along the axis, as a range: "A5:A7".');
+            }
+            if (isset($chart['position'])) {
+                $p = $chart['position'];
+                $a = is_array($p) && is_string($p['from'] ?? null) ? CellAddress::parse($p['from']) : null;
+                $b = is_array($p) && is_string($p['to'] ?? null) ? CellAddress::parse($p['to']) : null;
+                if ($a === null || $b === null || $b[0] <= $a[0] || $b[1] <= $a[1]) {
+                    $errors[] = $this->error("{$at}.position", '{"from": top-left cell, "to": bottom-right cell}', $this->typeOf($p), $p,
+                        'Two cells, the second below and to the right of the first: {"from": "E2", "to": "L18"} is 7 columns by 16 rows.');
+                }
+            }
+            foreach (['title', 'format'] as $key) {
+                if (isset($chart[$key]) && !is_string($chart[$key])) {
+                    $errors[] = $this->error("{$at}.{$key}", 'string', $this->typeOf($chart[$key]), $chart[$key],
+                        $key === 'format' ? 'An Excel number format for the axis and labels, like "$#,##0" or "0.0%".' : 'The chart title.');
+                }
+            }
+            foreach (['dataLabels', 'legend'] as $key) {
+                if (isset($chart[$key]) && !is_bool($chart[$key])) {
+                    $errors[] = $this->error("{$at}.{$key}", 'boolean', $this->typeOf($chart[$key]), $chart[$key],
+                        $key === 'dataLabels' ? 'true prints each value on the chart.' : 'Defaults to on for several series or a pie.');
+                }
+            }
+        }
+
+        return $errors;
+    }
+
     private function error(string $path, string $expected, string $got, mixed $value, string $hint): array
     {
         return [

@@ -91,7 +91,34 @@ final class XlsxReader
                     }
                 }
 
-                $sheets[] = WorksheetParser::parse($worksheetXml, $name, $stylesIndex, $comments, $sharedStrings);
+                $sheet = WorksheetParser::parse($worksheetXml, $name, $stylesIndex, $comments, $sharedStrings);
+
+                // Charts: sheet rels -> drawing -> drawing rels -> chart parts.
+                if (is_string($sheetRelsXml)) {
+                    $charts = [];
+                    foreach (RelsParser::byType(RelsParser::parse($sheetRelsXml), '/drawing') as $dr) {
+                        $drawingPath = self::resolveRelativePath($sheetPath, $dr['Target']);
+                        $drawingXml = $zip->getFromName($drawingPath);
+                        $drawingRelsXml = $zip->getFromName(dirname($drawingPath).'/_rels/'.basename($drawingPath).'.rels');
+                        if (! is_string($drawingXml) || ! is_string($drawingRelsXml)) {
+                            continue;
+                        }
+                        $drawingRels = RelsParser::parse($drawingRelsXml);
+                        foreach (ChartParser::anchors($drawingXml) as $anchor) {
+                            $target = $drawingRels[$anchor['rel']]['Target'] ?? null;
+                            $chartXml = is_string($target) ? $zip->getFromName(self::resolveRelativePath($drawingPath, $target)) : false;
+                            $chart = is_string($chartXml) ? ChartParser::chart($chartXml, $name, $anchor['from'], $anchor['to']) : null;
+                            if ($chart !== null) {
+                                $charts[] = $chart;
+                            }
+                        }
+                    }
+                    if ($charts !== []) {
+                        $sheet = $sheet->withCharts($charts);
+                    }
+                }
+
+                $sheets[] = $sheet;
                 $i++;
             }
         }

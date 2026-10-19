@@ -6,6 +6,7 @@ namespace HolySheet\Reader;
 
 use HolySheet\Reader\Format\DateInverter;
 use HolySheet\Workbook\Cell;
+use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\CellComment;
 use HolySheet\Workbook\CellFormat;
 use HolySheet\Workbook\MergedRegion;
@@ -74,6 +75,39 @@ final class WorkbookSchema
             }
             $out['print'] = $print;
         }
+        if ($sheet->charts !== []) {
+            $out['charts'] = array_map(static fn (array $c): array => self::chartToSchema($c, $sheet->name), $sheet->charts);
+        }
+        return $out;
+    }
+
+    /**
+     * A normalised chart in the schema's own form: ranges as "B5:B7" on this
+     * sheet ('Other'!B5:B7 elsewhere), the position as two cells, defaults left
+     * out.
+     *
+     * @param  array<string, mixed>  $chart
+     * @return array<string, mixed>
+     */
+    private static function chartToSchema(array $chart, string $sheetName): array
+    {
+        $out = ['type' => $chart['type']];
+        if ($chart['title'] !== null) $out['title'] = $chart['title'];
+        if ($chart['categories'] !== null) $out['categories'] = $chart['categories']->toSchema($sheetName);
+        $out['series'] = array_map(static function (array $s) use ($sheetName): array {
+            $series = [];
+            if ($s['name'] !== null) $series['name'] = $s['name'];
+            $series['values'] = $s['values']->toSchema($sheetName);
+            if ($s['color'] !== null) $series['color'] = '#'.$s['color'];
+            return $series;
+        }, $chart['series']);
+        $out['position'] = [
+            'from' => CellAddress::letter($chart['from'][0]).($chart['from'][1] + 1),
+            'to' => CellAddress::letter($chart['to'][0]).($chart['to'][1] + 1),
+        ];
+        if ($chart['dataLabels']) $out['dataLabels'] = true;
+        if ($chart['legend'] !== null) $out['legend'] = $chart['legend'];
+        if ($chart['format'] !== null) $out['format'] = $chart['format'];
         return $out;
     }
 

@@ -10,6 +10,7 @@ use HolySheet\Workbook\Cell;
 use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\CellComment;
 use HolySheet\Workbook\CellFormat;
+use HolySheet\Workbook\ChartRange;
 use HolySheet\Workbook\MergedRegion;
 use HolySheet\Workbook\Sheet;
 use HolySheet\Workbook\Workbook;
@@ -135,7 +136,80 @@ final class Normalizer
             frozenCols: (int) ($sheet['frozenCols'] ?? 0),
             rowHeights: self::normalizeRowHeights($sheet['rowHeights'] ?? null),
             print: self::normalizePrint($sheet['print'] ?? null),
+            charts: self::normalizeCharts($sheet['charts'] ?? null, $name, $cells),
         );
+    }
+
+    /** The chart types the writer draws. */
+    public const CHART_TYPES = ['column', 'bar', 'line', 'pie'];
+
+    /**
+     * `charts`, normalised. A chart the validator would refuse is dropped here
+     * (no type it draws, or no series with a range); everything else keeps
+     * what it can. A chart with no `position` is placed to the right of the
+     * sheet's content, 8 columns wide and 16 rows tall, stacked one under the
+     * other.
+     *
+     * @param  array<string, Cell>  $cells
+     * @return list<array<string, mixed>>
+     */
+    public static function normalizeCharts(mixed $charts, string $sheetName, array $cells): array
+    {
+        if (! is_array($charts)) {
+            return [];
+        }
+        $lastCol = -1;
+        foreach (array_keys($cells) as $address) {
+            $parsed = CellAddress::parse((string) $address);
+            if ($parsed !== null) {
+                $lastCol = max($lastCol, $parsed[0]);
+            }
+        }
+
+        $out = [];
+        foreach (array_values($charts) as $chart) {
+            if (! is_array($chart) || ! in_array($chart['type'] ?? null, self::CHART_TYPES, true)) {
+                continue;
+            }
+            $series = [];
+            foreach (is_array($chart['series'] ?? null) ? array_values($chart['series']) : [] as $s) {
+                $values = is_array($s) ? ChartRange::parse($s['values'] ?? null, $sheetName) : null;
+                if ($values === null) {
+                    continue;
+                }
+                $color = is_string($s['color'] ?? null) && preg_match('/^#([0-9A-Fa-f]{6})$/', $s['color'], $m) === 1 ? strtoupper($m[1]) : null;
+                $series[] = ['name' => is_string($s['name'] ?? null) ? $s['name'] : null, 'values' => $values, 'color' => $color];
+            }
+            if ($series === []) {
+                continue;
+            }
+
+            $stack = count($out);
+            $from = [$lastCol + 2, 1 + 18 * $stack];
+            $to = [$from[0] + 8, $from[1] + 16];
+            if (is_array($chart['position'] ?? null)) {
+                $a = is_string($chart['position']['from'] ?? null) ? CellAddress::parse($chart['position']['from']) : null;
+                $b = is_string($chart['position']['to'] ?? null) ? CellAddress::parse($chart['position']['to']) : null;
+                if ($a !== null && $b !== null && $b[0] > $a[0] && $b[1] > $a[1]) {
+                    $from = [$a[0], $a[1] - 1];
+                    $to = [$b[0], $b[1] - 1];
+                }
+            }
+
+            $out[] = [
+                'type' => $chart['type'],
+                'title' => is_string($chart['title'] ?? null) && $chart['title'] !== '' ? $chart['title'] : null,
+                'categories' => ChartRange::parse($chart['categories'] ?? null, $sheetName),
+                'series' => $series,
+                'from' => $from,
+                'to' => $to,
+                'legend' => is_bool($chart['legend'] ?? null) ? $chart['legend'] : null,
+                'dataLabels' => ($chart['dataLabels'] ?? false) === true,
+                'format' => is_string($chart['format'] ?? null) && $chart['format'] !== '' ? $chart['format'] : null,
+            ];
+        }
+
+        return $out;
     }
 
     /**

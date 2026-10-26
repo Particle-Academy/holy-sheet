@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
-use HolySheet\Exceptions\UnsupportedFormatException;
+use HolySheet\Archive\SourceArchive;
 use HolySheet\Workbook\Workbook;
 use RuntimeException;
 use SimpleXMLElement;
-use ZipArchive;
 
 /**
  * XLSX reader — orchestrates the full read path.
@@ -34,29 +33,24 @@ final class XlsxReader
 
     public function readWorkbook(string $path): Workbook
     {
-        $zip = new ZipArchive();
-        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
-            throw UnsupportedFormatException::notAZip($path);
-        }
+        $zip = SourceArchive::fromPath($path);
 
-        $stylesXml = $zip->getFromName('xl/styles.xml');
+        $stylesXml = $zip->read('xl/styles.xml');
         $stylesIndex = is_string($stylesXml) ? StylesParser::parse($stylesXml) : [];
 
-        $sharedStringsXml = $zip->getFromName('xl/sharedStrings.xml');
+        $sharedStringsXml = $zip->read('xl/sharedStrings.xml');
         $sharedStrings = is_string($sharedStringsXml) ? SharedStringsParser::parse($sharedStringsXml) : [];
 
-        $workbookXml = $zip->getFromName('xl/workbook.xml');
-        if ($workbookXml === false) {
-            $zip->close();
+        $workbookXml = $zip->read('xl/workbook.xml');
+        if ($workbookXml === null) {
             throw new RuntimeException("[holy-sheet] missing xl/workbook.xml in {$path}");
         }
 
-        $workbookRelsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
+        $workbookRelsXml = $zip->read('xl/_rels/workbook.xml.rels');
         $workbookRels = is_string($workbookRelsXml) ? RelsParser::parse($workbookRelsXml) : [];
 
         $sheetsXml = @simplexml_load_string($workbookXml);
         if ($sheetsXml === false) {
-            $zip->close();
             throw new RuntimeException("[holy-sheet] failed to parse xl/workbook.xml in {$path}");
         }
 
@@ -70,13 +64,13 @@ final class XlsxReader
                 if ($target === null) continue;
 
                 $sheetPath = 'xl/'.ltrim($target, '/');
-                $worksheetXml = $zip->getFromName($sheetPath);
-                if ($worksheetXml === false) continue;
+                $worksheetXml = $zip->read($sheetPath);
+                if ($worksheetXml === null) continue;
 
                 // Comments — sheet-specific rels file points to commentsN.xml
                 $sheetNum = $i + 1;
                 $sheetRelsPath = "xl/worksheets/_rels/sheet{$sheetNum}.xml.rels";
-                $sheetRelsXml = $zip->getFromName($sheetRelsPath);
+                $sheetRelsXml = $zip->read($sheetRelsPath);
                 $comments = [];
                 if (is_string($sheetRelsXml)) {
                     $sheetRels = RelsParser::parse($sheetRelsXml);
@@ -84,7 +78,7 @@ final class XlsxReader
                     foreach ($commentRels as $cr) {
                         $commentsTarget = $cr['Target'];
                         $commentsPath = self::resolveRelativePath($sheetPath, $commentsTarget);
-                        $commentsXml = $zip->getFromName($commentsPath);
+                        $commentsXml = $zip->read($commentsPath);
                         if (is_string($commentsXml)) {
                             $comments = array_replace($comments, CommentsParser::parse($commentsXml));
                         }
@@ -98,15 +92,15 @@ final class XlsxReader
                     $charts = [];
                     foreach (RelsParser::byType(RelsParser::parse($sheetRelsXml), '/drawing') as $dr) {
                         $drawingPath = self::resolveRelativePath($sheetPath, $dr['Target']);
-                        $drawingXml = $zip->getFromName($drawingPath);
-                        $drawingRelsXml = $zip->getFromName(dirname($drawingPath).'/_rels/'.basename($drawingPath).'.rels');
+                        $drawingXml = $zip->read($drawingPath);
+                        $drawingRelsXml = $zip->read(dirname($drawingPath).'/_rels/'.basename($drawingPath).'.rels');
                         if (! is_string($drawingXml) || ! is_string($drawingRelsXml)) {
                             continue;
                         }
                         $drawingRels = RelsParser::parse($drawingRelsXml);
                         foreach (ChartParser::anchors($drawingXml) as $anchor) {
                             $target = $drawingRels[$anchor['rel']]['Target'] ?? null;
-                            $chartXml = is_string($target) ? $zip->getFromName(self::resolveRelativePath($drawingPath, $target)) : false;
+                            $chartXml = is_string($target) ? $zip->read(self::resolveRelativePath($drawingPath, $target)) : null;
                             $chart = is_string($chartXml) ? ChartParser::chart($chartXml, $name, $anchor['from'], $anchor['to']) : null;
                             if ($chart !== null) {
                                 $charts[] = $chart;
@@ -124,16 +118,15 @@ final class XlsxReader
         }
 
         $meta = $this->parseDocProps($zip);
-        $zip->close();
 
         return new Workbook($sheets, $meta);
     }
 
     /** @return array<string,mixed> */
-    private function parseDocProps(ZipArchive $zip): array
+    private function parseDocProps(SourceArchive $zip): array
     {
-        $coreXml = $zip->getFromName('docProps/core.xml');
-        if ($coreXml === false) return [];
+        $coreXml = $zip->read('docProps/core.xml');
+        if ($coreXml === null) return [];
 
         // SimpleXML strips namespaces awkwardly; use children() with namespace URI for safety.
         $core = @simplexml_load_string($coreXml);

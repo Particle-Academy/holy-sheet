@@ -17,6 +17,12 @@ The package ships **no HTTP endpoints**. If you need an "Export to xlsx" route, 
 
 ## Installation
 
+Spreadsheet reads validate ZIP structure, CRC, names and expansion before XML
+parsing. Unsafe archives throw `HolySheet\Exceptions\ArchiveRefused`, whose
+`reason` identifies a corrupt, unsupported, duplicate, unsafe-path or size-limit
+refusal. Defaults are 64 MiB archive/part, 256 MiB total expansion, 16,384 entries and
+1000:1 ratio. This bounded input layer does not add a lossless editing API.
+
 ```bash
 composer require particle-academy/holy-sheet
 ```

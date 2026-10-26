@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
-use HolySheet\Exceptions\UnsupportedFormatException;
+use HolySheet\Archive\SourceArchive;
 use HolySheet\Reader\Ods\Ns;
 use HolySheet\Reader\Ods\OdsFormula;
 use HolySheet\Reader\Ods\OdsStyles;
@@ -17,7 +17,6 @@ use HolySheet\Workbook\Sheet;
 use HolySheet\Workbook\Workbook;
 use RuntimeException;
 use SimpleXMLElement;
-use ZipArchive;
 
 /**
  * OpenDocument Spreadsheet (.ods) reader.
@@ -71,16 +70,12 @@ final class OdsReader
 
     public function readWorkbook(string $path): Workbook
     {
-        $zip = new ZipArchive();
-        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
-            throw UnsupportedFormatException::notAZip($path);
-        }
-        $content = $zip->getFromName('content.xml');
-        $styles = $zip->getFromName('styles.xml');
-        $meta = $zip->getFromName('meta.xml');
-        $zip->close();
+        $zip = SourceArchive::fromPath($path);
+        $content = $zip->read('content.xml');
+        $styles = $zip->read('styles.xml');
+        $meta = $zip->read('meta.xml');
 
-        if ($content === false) {
+        if ($content === null) {
             throw new RuntimeException("[holy-sheet] missing content.xml in {$path}");
         }
         $contentXml = @simplexml_load_string($content);

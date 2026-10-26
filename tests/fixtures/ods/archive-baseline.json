@@ -1,0 +1,22 @@
+{
+  "workbook.xlsx": {
+    "sourceSha256": "3ede7fe43bcf1c2f8fb626951fe2412a10445d6f2a66a12c548258c6148e11a4",
+    "entries": 15,
+    "payloadsSha256": "a89846d63e00488fd7c120e255e199f60364a398c230be102dcc07022b53715c"
+  },
+  "workbook.ods": {
+    "sourceSha256": "e18a56907e324af4e27b3387e7d1accd5d4a7193ed13c943a45080ebb6aa3daa",
+    "entries": 9,
+    "payloadsSha256": "3af39447caa0acae87cad5bb3a334b07867326dd70d704a3de566b20f6312c18"
+  },
+  "native.ods": {
+    "sourceSha256": "b9db19e7c8dc81cdd12b8f3b4d0dd76117e1859e01cab8ac8af070b46a51dfe3",
+    "entries": 9,
+    "payloadsSha256": "b9692f80b36e5d79d0f2e1b340458be50e584c5f1664fec8097f5535f32410bb"
+  },
+  "edge.ods": {
+    "sourceSha256": "e8797384f8973c27b146922ee8f65b6a84b352e1a6d6dd81699696d65bfd6a96",
+    "entries": 5,
+    "payloadsSha256": "89503658b223e626983ed86f3834e1ef9ff0162423eb3142d1bcf32ad12195bf"
+  }
+}

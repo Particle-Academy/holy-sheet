@@ -4,6 +4,15 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Security
+
+- Validate XLSX/ODS ZIP records, member names, duplicates, CRC and declared and
+  actual sizes before parsing. Bound archive/file input, individual and total
+  expansion and compression ratio; unsafe or unsupported packages throw typed
+  `HolySheet\Exceptions\ArchiveRefused` without echoing document content.
+  Validated input retains original bytes and opaque members. Default ceilings:
+  64 MiB archive/part, 256 MiB expanded, 16,384 entries and 1000:1 expansion ratio.
+
 ## [2.9.1] — 2026-10-19
 
 ### Fixed

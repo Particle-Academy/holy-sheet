@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace HolySheet\Reader;
 
 use HolySheet\Exceptions\UnsupportedFormatException;
-use ZipArchive;
+use HolySheet\Archive\SourceArchive;
+use HolySheet\Exceptions\ArchiveRefused;
 
 /**
  * Which reader a file needs, decided from its contents, never its extension.
@@ -29,25 +30,22 @@ final class FormatSniffer
     /** @return self::XLSX|self::ODS */
     public static function sniff(string $path): string
     {
-        $zip = new ZipArchive();
-        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
-            throw UnsupportedFormatException::notAZip($path);
-        }
-
         try {
-            $mimetype = $zip->getFromName('mimetype');
-            $mimetype = is_string($mimetype) ? trim($mimetype) : null;
-
-            if ($mimetype !== null && in_array($mimetype, self::ODS_MIMETYPES, true)) {
-                return self::ODS;
+            $zip = SourceArchive::fromPath($path);
+        } catch (ArchiveRefused $error) {
+            if ($error->reason === 'archive_corrupt' && @file_get_contents($path, false, null, 0, 2) !== 'PK') {
+                throw UnsupportedFormatException::notAZip($path);
             }
-            if ($zip->locateName('xl/workbook.xml') !== false) {
-                return self::XLSX;
-            }
-
-            throw UnsupportedFormatException::unknownPackage($path, $mimetype);
-        } finally {
-            $zip->close();
+            throw $error;
         }
+        $mimetype = $zip->read('mimetype');
+        $mimetype = is_string($mimetype) ? trim($mimetype) : null;
+        if ($mimetype !== null && in_array($mimetype, self::ODS_MIMETYPES, true)) {
+            return self::ODS;
+        }
+        if ($zip->read('xl/workbook.xml') !== null) {
+            return self::XLSX;
+        }
+        throw UnsupportedFormatException::unknownPackage($path, $mimetype);
     }
 }

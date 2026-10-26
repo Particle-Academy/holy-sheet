@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.9.2] — 2026-10-26
+
 ### Security
 
 - Validate XLSX/ODS ZIP records, member names, duplicates, CRC and declared and

@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-10-27
+
 ### Added
 
 - **Excel `.xltx` templates read, and `.ots` templates marked.**

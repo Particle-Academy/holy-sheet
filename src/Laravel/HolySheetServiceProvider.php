@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace HolySheet\Laravel;
 
 use HolySheet\HolySheet;
+use HolySheet\Laravel\Commands\TemplateConvertCommand;
 use HolySheet\Laravel\Commands\WriteCommand;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
@@ -40,6 +41,7 @@ final class HolySheetServiceProvider extends ServiceProvider
 
             $this->commands([
                 WriteCommand::class,
+                TemplateConvertCommand::class,
             ]);
         }
     }

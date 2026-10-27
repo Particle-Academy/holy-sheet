@@ -4,6 +4,38 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Added
+
+- **Excel `.xltx` templates read, and `.ots` templates marked.**
+  `Agent::describe()` reads an `.xltx` exactly as its `.xlsx` twin and adds
+  `"sourceKind": "template"`; an `.ots` (already read since 2.2, unmarked) now
+  says so too. `Workbook` gains a trailing optional `sourceKind` argument
+  (default `'document'`). Document descriptions are unchanged and carry no
+  `sourceKind` key, so nothing to do unless you want to tell the two apart. A
+  template description still validates and writes (as an `.xlsx`).
+- **`Agent::convertTemplate($bytesOrPath, $to = null)`** (also on the
+  `HolySheet` instance), `vendor/bin/holy-sheet template:convert <in> <out>
+  [--to=document|template] [--force]` and `php artisan
+  holy-sheet:template-convert` turn a template into its workbook twin and back.
+  Only the declaration is rewritten: the workbook part's content-type value
+  (OOXML), or the `mimetype` entry plus the manifest root's `media-type` (ODF
+  1.3 Part 2 section 3.3 requires them to agree). Every other zip member is
+  copied as its original record, byte for byte; `mimetype` stays first and
+  stored.
+- `HolySheet\Exceptions\OfficeTemplateRefused` with a constant `reason`.
+
+### Changed
+
+- **A macro-enabled template (`.xltm`) is now refused** with
+  `OfficeTemplateRefused('macro_enabled')`; it used to be described as a
+  workbook with its VBA silently ignored. So is an `.xltx` carrying a
+  `vbaProject.bin`. An `.xlsm` still reads as before but is never converted.
+  Re-save an `.xltm` as `.xltx` if you need it read.
+- A package that declares a template of another family (a Word or PowerPoint
+  template type on the workbook part, a `spreadsheet-template` whose body is
+  text) is refused with `family_mismatch` instead of being read as whatever its
+  parts looked like.
+
 ## [2.9.2] — 2026-10-26
 
 ### Security

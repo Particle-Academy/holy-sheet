@@ -87,6 +87,12 @@ final class HolySheet
         return Agent::describe($path);
     }
 
+    /** {@see Agent::convertTemplate()}: .xltx/.ots to .xlsx/.ods and back. */
+    public function convertTemplate(string $bytesOrPath, ?string $to = null): string
+    {
+        return Agent::convertTemplate($bytesOrPath, $to);
+    }
+
     /**
      * Validate a schema and apply conservative repairs in one call.
      *

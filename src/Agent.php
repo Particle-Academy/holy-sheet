@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace HolySheet;
 
+use HolySheet\Archive\OfficeTemplate;
+use HolySheet\Archive\SourceArchive;
 use HolySheet\Exceptions\UnsupportedFormatException;
 use HolySheet\Helpers\ArrayBuilder;
 use HolySheet\Helpers\CsvBuilder;
@@ -120,6 +122,38 @@ final class Agent
             FormatSniffer::ODS => (new OdsReader())->describe($path),
             FormatSniffer::XLSX => (new XlsxReader())->describe($path),
         };
+    }
+
+    /**
+     * Turn an Excel `.xltx` / LibreOffice `.ots` template into its `.xlsx` /
+     * `.ods` twin, or back. `$to` is `document`, `template`, or null to flip.
+     * Takes raw bytes or a path; returns bytes.
+     *
+     * Only the declaration moves: the workbook part's content type in
+     * `[Content_Types].xml`, or the ODF `mimetype` entry together with the
+     * manifest's root media-type (ODF 1.3 requires them to agree). Every other
+     * member is copied as its original zip record, byte for byte; no reader or
+     * writer is in the path, so nothing is reflowed or lost.
+     *
+     * Macro-enabled packages (.xltm, .xlsm) are refused, never converted.
+     *
+     * @throws \HolySheet\Exceptions\OfficeTemplateRefused
+     * @throws \HolySheet\Exceptions\ArchiveRefused
+     * @throws UnsupportedFormatException for anything that is not a spreadsheet package
+     */
+    public static function convertTemplate(string $bytesOrPath, ?string $to = null): string
+    {
+        $isPath = ! str_contains($bytesOrPath, "\0") && strlen($bytesOrPath) <= 4096 && is_file($bytesOrPath);
+        $zip = $isPath ? SourceArchive::fromPath($bytesOrPath) : SourceArchive::open($bytesOrPath);
+        $label = $isPath ? $bytesOrPath : '(bytes)';
+        $mimetype = $zip->read('mimetype');
+        $mimetype = is_string($mimetype) ? trim($mimetype) : null;
+        $odf = $mimetype !== null && str_starts_with($mimetype, 'application/vnd.oasis.opendocument.spreadsheet');
+        if (! $odf && ($mimetype !== null || $zip->read('xl/workbook.xml') === null)) {
+            throw UnsupportedFormatException::unknownPackage($label, $mimetype);
+        }
+
+        return OfficeTemplate::convert($zip->toBytes(), $to);
     }
 
     /**

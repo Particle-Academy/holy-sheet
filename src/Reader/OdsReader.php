@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\OfficeTemplate;
 use HolySheet\Archive\SourceArchive;
 use HolySheet\Reader\Ods\Ns;
 use HolySheet\Reader\Ods\OdsFormula;
@@ -71,6 +72,7 @@ final class OdsReader
     public function readWorkbook(string $path): Workbook
     {
         $zip = SourceArchive::fromPath($path);
+        $sourceKind = OfficeTemplate::kind($zip);
         $content = $zip->read('content.xml');
         $styles = $zip->read('styles.xml');
         $meta = $zip->read('meta.xml');
@@ -97,7 +99,7 @@ final class OdsReader
             }
         }
 
-        return new Workbook($sheets, is_string($meta) ? self::readMeta($meta) : []);
+        return new Workbook($sheets, is_string($meta) ? self::readMeta($meta) : [], $sourceKind);
     }
 
     private function readSheet(SimpleXMLElement $table, OdsStyles $styles): Sheet

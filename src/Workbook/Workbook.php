@@ -17,9 +17,12 @@ final class Workbook
     /**
      * @param  list<Sheet>  $sheets
      * @param  array<string,mixed>  $meta
+     * @param  'document'|'template'  $sourceKind  what a reader found: an .xltx / .ots
+     *   reads exactly like its .xlsx / .ods twin and is marked `template`
      */
     public function __construct(
         public readonly array $sheets,
         public readonly array $meta = [],
+        public readonly string $sourceKind = 'document',
     ) {}
 }

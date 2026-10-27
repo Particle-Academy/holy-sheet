@@ -98,6 +98,37 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 - ✅ **`dumpJson()`** (1.3+) — `Agent::dumpJson($schema, ?DumpOptions)` serializes a schema to JSON (values + formulas). The read-tool counterpart to `describe()`: describe gives shape, dumpJson gives content. Compaction + a byte ceiling keep agent token cost bounded
 - ✅ **Agent toolkit** (1.3+) — `HolySheet\Toolkit\Toolkit` ships the canonical Build / Write / Read / Lint / Describe tools as framework-agnostic descriptors (`name` + `description` + JSON-Schema `parameters` + callable `handler`) plus a shipped agent prompt. Map them onto any SDK in a few lines (see [Agent toolkit](#agent-toolkit))
 
+## Excel and LibreOffice templates (.xltx, .ots)
+
+An `.xltx` is an `.xlsx` whose workbook part is declared a template; an `.ots`
+is an `.ods` whose `mimetype` (and manifest root entry) says
+`spreadsheet-template`. `Agent::describe()` reads both exactly as it reads their
+twins and adds `"sourceKind": "template"` (also `Workbook::$sourceKind` from
+`readWorkbook()`). A document description has no `sourceKind` key, as before.
+
+```php
+Agent::describe('budget.xltx');            // [..., 'sourceKind' => 'template']
+Agent::convertTemplate('budget.xltx');     // .xlsx bytes ('document' | 'template' | null = flip)
+```
+
+```
+vendor/bin/holy-sheet template:convert budget.xltx budget.xlsx
+php artisan holy-sheet:template-convert budget.ods budget.ots --to=template
+```
+
+Conversion rewrites only the declaration: the content-type value in
+`[Content_Types].xml`, or the ODF `mimetype` entry plus the manifest's root
+`media-type` (ODF 1.3 requires the two to match). Every other member is copied
+as its original zip record, byte for byte, and `mimetype` stays first and
+stored. No reader or writer is in the path.
+
+Refused with `HolySheet\Exceptions\OfficeTemplateRefused` (a constant
+`reason`): macro-enabled templates `.xltm` (`macro_enabled`; never read, never
+converted, and an `.xlsm` is not converted either), and a package declaring a
+template of another family or whose parts disagree with its declaration
+(`family_mismatch`). Archive guards apply first, so bombs and unsafe names raise
+`ArchiveRefused` as for any workbook.
+
 ## Agent toolkit
 
 Every team building a spreadsheet agent on Holy Sheet hand-writes the same Build / Write / Read / Lint tools and the same validate → lint → repair loop. That layer is shipped — framework-agnostic, zero coupling:

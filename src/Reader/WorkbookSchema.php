@@ -33,6 +33,10 @@ final class WorkbookSchema
         if ($workbook->meta !== []) {
             $schema['meta'] = $workbook->meta;
         }
+        // Only templates say so; a document description is unchanged.
+        if ($workbook->sourceKind === 'template') {
+            $schema['sourceKind'] = 'template';
+        }
         return $schema;
     }
 

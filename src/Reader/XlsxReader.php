@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\OfficeTemplate;
 use HolySheet\Archive\SourceArchive;
 use HolySheet\Workbook\Workbook;
 use RuntimeException;
@@ -34,6 +35,7 @@ final class XlsxReader
     public function readWorkbook(string $path): Workbook
     {
         $zip = SourceArchive::fromPath($path);
+        $sourceKind = OfficeTemplate::kind($zip);
 
         $stylesXml = $zip->read('xl/styles.xml');
         $stylesIndex = is_string($stylesXml) ? StylesParser::parse($stylesXml) : [];
@@ -119,7 +121,7 @@ final class XlsxReader
 
         $meta = $this->parseDocProps($zip);
 
-        return new Workbook($sheets, $meta);
+        return new Workbook($sheets, $meta, $sourceKind);
     }
 
     /** @return array<string,mixed> */

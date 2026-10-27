@@ -127,6 +127,11 @@ final class StylesRegistry
     private function numFmtFor(CellFormat $f): int
     {
         $code = NumFmtBuilder::build($f);
+        // A foreign code read from a file goes back verbatim when nothing more
+        // specific was asked for. It is XML-escaped in toXml() like any code.
+        if ($code === null && $f->displayFormat === null && $f->formatCode !== null && $f->formatCode !== '') {
+            $code = $f->formatCode;
+        }
         if ($code === null) return 0;
         if (isset($this->numFmtIndex[$code])) return $this->numFmtIndex[$code];
         $id = $this->nextNumFmtId++;

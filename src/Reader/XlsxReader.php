@@ -34,7 +34,12 @@ final class XlsxReader
 
     public function readWorkbook(string $path): Workbook
     {
-        $zip = SourceArchive::fromPath($path);
+        return $this->readArchive(SourceArchive::fromPath($path), $path);
+    }
+
+    /** The same read, from an already-opened (and already limit-checked) archive. */
+    public function readArchive(SourceArchive $zip, string $path = '(bytes)'): Workbook
+    {
         $sourceKind = OfficeTemplate::kind($zip);
 
         $stylesXml = $zip->read('xl/styles.xml');
@@ -65,13 +70,14 @@ final class XlsxReader
                 $target = $workbookRels[$rId]['Target'] ?? null;
                 if ($target === null) continue;
 
-                $sheetPath = 'xl/'.ltrim($target, '/');
+                $sheetPath = str_starts_with($target, '/') ? ltrim($target, '/') : self::resolveRelativePath('xl/workbook.xml', $target);
                 $worksheetXml = $zip->read($sheetPath);
                 if ($worksheetXml === null) continue;
 
-                // Comments — sheet-specific rels file points to commentsN.xml
-                $sheetNum = $i + 1;
-                $sheetRelsPath = "xl/worksheets/_rels/sheet{$sheetNum}.xml.rels";
+                // The sheet's own rels part sits beside it, named after its
+                // actual file -- not after its position in the tab strip, which
+                // need not match (sheet3.xml can be the first tab).
+                $sheetRelsPath = dirname($sheetPath).'/_rels/'.basename($sheetPath).'.rels';
                 $sheetRelsXml = $zip->read($sheetRelsPath);
                 $comments = [];
                 if (is_string($sheetRelsXml)) {
@@ -114,6 +120,26 @@ final class XlsxReader
                     }
                 }
 
+                // Excel tables: sheet rels -> table parts.
+                if (is_string($sheetRelsXml)) {
+                    $tables = [];
+                    foreach (RelsParser::byType(RelsParser::parse($sheetRelsXml), '/table') as $tr) {
+                        $tableXml = $zip->read(self::resolveRelativePath($sheetPath, $tr['Target']));
+                        $table = is_string($tableXml) ? self::parseTable($tableXml) : null;
+                        if ($table !== null) {
+                            $tables[] = $table;
+                        }
+                    }
+                    if ($tables !== []) {
+                        $sheet = $sheet->with(['tables' => $tables]);
+                    }
+                }
+
+                $state = (string) $sheetEl['state'];
+                if ($state === 'hidden' || $state === 'veryHidden') {
+                    $sheet = $sheet->with(['state' => $state]);
+                }
+
                 $sheets[] = $sheet;
                 $i++;
             }
@@ -121,7 +147,53 @@ final class XlsxReader
 
         $meta = $this->parseDocProps($zip);
 
-        return new Workbook($sheets, $meta, $sourceKind);
+        return new Workbook($sheets, $meta, $sourceKind, self::parseDefinedNames($sheetsXml));
+    }
+
+    /**
+     * Workbook defined names, `ref` verbatim. Excel's own `_xlnm.*` names
+     * (print areas, filter ranges) are not names anyone chose and are left out.
+     *
+     * @return list<array{name:string,ref:string}>
+     */
+    private static function parseDefinedNames(SimpleXMLElement $workbook): array
+    {
+        $out = [];
+        if (!isset($workbook->definedNames) || !$workbook->definedNames->definedName) {
+            return $out;
+        }
+        foreach ($workbook->definedNames->definedName as $dn) {
+            $name = (string) $dn['name'];
+            if ($name === '' || str_starts_with(strtolower($name), '_xlnm.')) {
+                continue;
+            }
+            $out[] = ['name' => $name, 'ref' => trim((string) $dn)];
+        }
+
+        return $out;
+    }
+
+    /** @return array{name:string,ref:string,headerRowCount:int}|null */
+    private static function parseTable(string $xml): ?array
+    {
+        $t = @simplexml_load_string($xml);
+        if ($t === false) {
+            return null;
+        }
+        $name = (string) ($t['displayName'] ?? '');
+        if ($name === '') {
+            $name = (string) ($t['name'] ?? '');
+        }
+        $ref = (string) ($t['ref'] ?? '');
+        if ($name === '' || $ref === '') {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'ref' => $ref,
+            'headerRowCount' => isset($t['headerRowCount']) ? max(0, (int) $t['headerRowCount']) : 1,
+        ];
     }
 
     /** @return array<string,mixed> */

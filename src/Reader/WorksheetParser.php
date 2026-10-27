@@ -40,7 +40,7 @@ final class WorksheetParser
         $columnWidths = self::parseColumnWidths($xml);
         [$frozenRows, $frozenCols] = self::parseFrozen($xml);
 
-        return new Sheet(
+        $sheet = new Sheet(
             name: $name,
             cells: $cells,
             mergedRegions: $merges,
@@ -50,6 +50,56 @@ final class WorksheetParser
             rowHeights: self::parseRowHeights($xml),
             print: self::parsePrint($xml),
         );
+
+        // Hidden rows and columns, clamped to what the sheet occupies: "hide
+        // every column from D on" is one <col> element for 16381 columns that
+        // hold nothing, and listing them would carry no information.
+        [$maxRow, $maxCol] = $sheet->extent();
+
+        return $sheet->with([
+            'hiddenRows' => self::parseHiddenRows($xml, $maxRow),
+            'hiddenColumns' => self::parseHiddenColumns($xml, $maxCol),
+        ]);
+    }
+
+    /** @return list<int>  1-based, ascending */
+    private static function parseHiddenRows(SimpleXMLElement $xml, int $maxRow): array
+    {
+        $out = [];
+        if (!isset($xml->sheetData) || !$xml->sheetData->row) {
+            return $out;
+        }
+        foreach ($xml->sheetData->row as $row) {
+            $r = (int) $row['r'];
+            if ($r > 0 && $r <= $maxRow && in_array((string) $row['hidden'], ['1', 'true'], true)) {
+                $out[$r] = $r;
+            }
+        }
+        ksort($out);
+
+        return array_values($out);
+    }
+
+    /** @return list<int>  0-based, ascending */
+    private static function parseHiddenColumns(SimpleXMLElement $xml, int $maxCol): array
+    {
+        $out = [];
+        if (!isset($xml->cols) || !$xml->cols->col) {
+            return $out;
+        }
+        foreach ($xml->cols->col as $col) {
+            if (!in_array((string) $col['hidden'], ['1', 'true'], true)) {
+                continue;
+            }
+            $min = max(1, (int) $col['min']);
+            $max = min((int) $col['max'], $maxCol + 1);
+            for ($i = $min; $i <= $max; $i++) {
+                $out[$i - 1] = $i - 1;
+            }
+        }
+        ksort($out);
+
+        return array_values($out);
     }
 
     /**

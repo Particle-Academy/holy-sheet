@@ -7,6 +7,10 @@ namespace HolySheet;
 use HolySheet\Archive\OfficeTemplate;
 use HolySheet\Archive\SourceArchive;
 use HolySheet\Exceptions\UnsupportedFormatException;
+use HolySheet\Exchange\ExportPolicy;
+use HolySheet\Exchange\Exporter;
+use HolySheet\Exchange\InputRefused;
+use HolySheet\Exchange\Inserter;
 use HolySheet\Helpers\ArrayBuilder;
 use HolySheet\Helpers\CsvBuilder;
 use HolySheet\Ops\SheetDiff;
@@ -14,6 +18,7 @@ use HolySheet\Ops\SheetOpSchema;
 use HolySheet\Ops\SheetReducer;
 use HolySheet\Reader\FormatSniffer;
 use HolySheet\Reader\OdsReader;
+use HolySheet\Reader\WorkbookSchema;
 use HolySheet\Reader\XlsxReader;
 use HolySheet\Schema\DumpOptions;
 use HolySheet\Schema\Dumper;
@@ -122,6 +127,118 @@ final class Agent
             FormatSniffer::ODS => (new OdsReader())->describe($path),
             FormatSniffer::XLSX => (new XlsxReader())->describe($path),
         };
+    }
+
+    /**
+     * Read a spreadsheet from raw bytes or a path: the sibling-named twin of
+     * `describe()` (last-word, dark-slide and the JS/Python ports call it
+     * `read`). Same schema, same refusals; bytes are told from a path the way
+     * `convertTemplate()` tells them.
+     *
+     * @return array<string,mixed>
+     *
+     * @throws UnsupportedFormatException when the input is neither an xlsx nor an ods
+     * @throws \HolySheet\Exceptions\ArchiveRefused through the archive guard
+     */
+    public static function read(string $bytesOrPath): array
+    {
+        if (Exporter::isPath($bytesOrPath)) {
+            return self::describe($bytesOrPath);
+        }
+        [$zip, $kind] = FormatSniffer::sniffBytes($bytesOrPath);
+        $workbook = $kind === FormatSniffer::ODS ? (new OdsReader())->readArchive($zip) : (new XlsxReader())->readArchive($zip);
+
+        return WorkbookSchema::fromWorkbook($workbook);
+    }
+
+    /**
+     * A cheap index of what an agent can grab: sheets (state, used range,
+     * counts), defined names, Excel tables and charts, each with the selector
+     * that grabs it. Read this instead of the whole workbook.
+     *
+     * @param  string|array<string,mixed>  $input  bytes, a path, or a model from read()
+     * @return array<string,mixed>  `{ok: true, sheets, definedNames, tables, charts, guard}` or `{ok: false, refused: {reason}}`
+     */
+    public static function catalog(string|array $input): array
+    {
+        try {
+            $loaded = Exporter::load($input);
+        } catch (InputRefused $e) {
+            return ['ok' => false, 'refused' => ['reason' => $e->reason]];
+        }
+
+        return ['ok' => true] + Exporter::catalog($loaded['model']);
+    }
+
+    /**
+     * Grab part of a spreadsheet as portable content (`fancyContent: 1`), for
+     * last-word, fine-print, dark-slide or another holy-sheet to place.
+     *
+     * Selector: `"Q4!A1:D20"`, `"'Q4 2026'!A1:D20"`, `"Q4"` (its used range),
+     * `{sheet, range}`, `{name}`, `{table}`, or null for every visible sheet.
+     * Formulas come back as their cached values and are never evaluated;
+     * hidden sheets, rows and columns are skipped and reported; invisible
+     * characters are stripped and counted. Not gated: it is a read.
+     *
+     * @param  string|array<string,mixed>  $input  bytes, a path, or a model from read()
+     * @param  array<string,mixed>  $options  `headerRows`; and, from the HOST only, `includeHidden` and `limits`
+     * @return array<string,mixed>  `{ok: true, content, report}` or `{ok: false, refused: {reason}}`
+     *
+     * @throws \HolySheet\Exchange\OptionsInvalid for an unknown or malformed option
+     */
+    public static function extract(string|array $input, mixed $selector = null, array $options = []): array
+    {
+        return Exporter::extract($input, $selector, $options);
+    }
+
+    /**
+     * Portable content -> this package's sparse cell map, with its top-left at
+     * `$at`. Every string is written as `{value: s}`, so a leading `=` stays
+     * text; a formula is never written, only its value.
+     *
+     * To place content inside a workbook you are writing, put
+     * `{"type": "portable", "at": "B4", "content": ...}` in a sheet's `insert`
+     * list instead; validate, validateAndRepair and write expand it.
+     *
+     * @return array<string,mixed>  `{ok: true, sheet: {cells, mergedRegions?, columnWidths?}, report}` or `{ok: false, refused: {reason, path}}`
+     */
+    public static function fromPortable(mixed $content, string $at = 'A1'): array
+    {
+        return Inserter::fromPortable($content, $at);
+    }
+
+    /**
+     * Export to another format. OFF unless the host's policy allows the target:
+     * a null policy allows nothing, and the agent's `$options` (selector,
+     * headerRows, display) can never enable anything; any other option throws.
+     *
+     * Targets: `csv` (one table; formula-injection escaping on unless the
+     * policy's `csv.escapeFormulas` is false), `markdown`, `xlsx` (from ods,
+     * or an xlsx template). `pdf` and `docx` need fine-print / last-word and
+     * are not bridged in this release: they refuse `export_unavailable`.
+     *
+     * @param  string|array<string,mixed>  $input  bytes, a path, or a model from read()
+     * @param  array<string,mixed>|null  $options  agent options
+     * @param  ExportPolicy|array<string,mixed>|null  $policy  host policy
+     * @return array<string,mixed>  `{ok: true, target, mime, text|bytes, report}` or `{ok: false, refused: {reason, target, missing?, cause?}}`
+     *
+     * @throws \HolySheet\Exchange\OptionsInvalid for a malformed policy or an option outside the three
+     */
+    public static function export(string|array $input, string $target, ?array $options = null, ExportPolicy|array|null $policy = null): array
+    {
+        return Exporter::export($input, $target, $options, $policy);
+    }
+
+    /**
+     * The export tool for an agent: its `target` enum lists only what `$policy`
+     * enables (and what is installed). Null when nothing is enabled, so no
+     * export tool is offered at all.
+     *
+     * @return array{name:string,description:string,parameters:array<string,mixed>}|null
+     */
+    public static function exportToolDefinition(ExportPolicy|array|null $policy): ?array
+    {
+        return Exporter::toolDefinition($policy);
     }
 
     /**

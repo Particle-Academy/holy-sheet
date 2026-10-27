@@ -24,5 +24,12 @@ final class Workbook
         public readonly array $sheets,
         public readonly array $meta = [],
         public readonly string $sourceKind = 'document',
+        /**
+         * Workbook-level defined names, `ref` as the file wrote it (read only;
+         * the writer does not author them).
+         *
+         * @var list<array{name:string,ref:string}>
+         */
+        public readonly array $definedNames = [],
     ) {}
 }

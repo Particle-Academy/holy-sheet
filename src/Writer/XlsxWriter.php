@@ -164,10 +164,24 @@ final class XlsxWriter
             $name = $this->escape($sheet->name);
             $sheetId = $i + 1;
             $rId = 'rId'.($i + 1);
-            $sheets .= "<sheet name=\"{$name}\" sheetId=\"{$sheetId}\" r:id=\"{$rId}\"/>";
+            $state = $sheet->state === 'hidden' || $sheet->state === 'veryHidden' ? " state=\"{$sheet->state}\"" : '';
+            $sheets .= "<sheet name=\"{$name}\" sheetId=\"{$sheetId}\"{$state} r:id=\"{$rId}\"/>";
+        }
+        // The active tab must be a visible sheet. It defaults to the first, so
+        // only a hidden first sheet needs saying (the validator guarantees at
+        // least one visible sheet exists).
+        $bookViews = '';
+        if (($workbook->sheets[0]->state ?? 'visible') !== 'visible') {
+            foreach ($workbook->sheets as $i => $sheet) {
+                if ($sheet->state === 'visible') {
+                    $bookViews = '<bookViews><workbookView firstSheet="'.$i.'" activeTab="'.$i.'"/></bookViews>';
+                    break;
+                }
+            }
         }
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .$bookViews
             ."<sheets>{$sheets}</sheets>"
             .'</workbook>';
     }
@@ -223,21 +237,34 @@ final class XlsxWriter
             $sheetViewsXml = '<sheetViews><sheetView workbookViewId="0">'.$pane.'</sheetView></sheetViews>';
         }
 
+        // One <col> per sized or hidden column, ascending (CT_Cols requires the
+        // ranges in order and non-overlapping). A hidden column without a width
+        // keeps Excel's default width, so un-hiding it shows a normal column.
+        $hiddenCols = array_flip($sheet->hiddenColumns);
+        $colIndexes = array_unique(array_merge(array_keys($sheet->columnWidths), $sheet->hiddenColumns));
+        sort($colIndexes);
         $colsXml = '';
-        if ($sheet->columnWidths !== []) {
+        if ($colIndexes !== []) {
             $colsXml = '<cols>';
-            foreach ($sheet->columnWidths as $colIdx => $px) {
-                $excelWidth = max(1.0, ($px - 5) / 7);
+            foreach ($colIndexes as $colIdx) {
                 $colNum = $colIdx + 1;
-                $colsXml .= '<col min="'.$colNum.'" max="'.$colNum.'" width="'.number_format($excelWidth, 4, '.', '').'" customWidth="1"/>';
+                $px = $sheet->columnWidths[$colIdx] ?? null;
+                $width = $px !== null
+                    ? number_format(max(1.0, ($px - 5) / 7), 4, '.', '').'" customWidth="1'
+                    : '8.43';
+                $colsXml .= '<col min="'.$colNum.'" max="'.$colNum.'" width="'.$width.'"'.(isset($hiddenCols[$colIdx]) ? ' hidden="1"' : '').'/>';
             }
             $colsXml .= '</cols>';
         }
 
-        // Rows with cells and rows with only a height, in row order. A height is
-        // written in points (pixels x 0.75), as Excel stores it.
+        // Rows with cells, rows with only a height, and hidden rows, in row
+        // order. A height is written in points (pixels x 0.75), as Excel stores it.
         $rows = $sheet->rows();
         foreach (array_keys($sheet->rowHeights) as $rowIndex) {
+            $rows[$rowIndex] ??= [];
+        }
+        $hiddenRows = array_flip($sheet->hiddenRows);
+        foreach ($sheet->hiddenRows as $rowIndex) {
             $rows[$rowIndex] ??= [];
         }
         ksort($rows);
@@ -251,6 +278,9 @@ final class XlsxWriter
             $ht = isset($sheet->rowHeights[$rowIndex])
                 ? ' ht="'.self::decimal($sheet->rowHeights[$rowIndex] * 0.75).'" customHeight="1"'
                 : '';
+            if (isset($hiddenRows[$rowIndex])) {
+                $ht .= ' hidden="1"';
+            }
             $rowsXml .= $cellsXml === '' ? "<row r=\"{$rowIndex}\"{$ht}/>" : "<row r=\"{$rowIndex}\"{$ht}>{$cellsXml}</row>";
         }
 

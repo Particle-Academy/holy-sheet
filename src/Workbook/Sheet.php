@@ -34,13 +34,66 @@ final class Sheet
          * @var list<array<string, mixed>>
          */
         public readonly array $charts = [],
+        /** 'visible' | 'hidden' | 'veryHidden' (Excel's sheet state; ods table:display="false" reads as hidden) */
+        public readonly string $state = 'visible',
+        /** @var list<int> 1-based row numbers, ascending */
+        public readonly array $hiddenRows = [],
+        /** @var list<int> 0-based column indexes, ascending */
+        public readonly array $hiddenColumns = [],
+        /**
+         * Excel tables (read only; the writer does not author them).
+         *
+         * @var list<array{name:string,ref:string,headerRowCount:int}>
+         */
+        public readonly array $tables = [],
     ) {}
 
     /** @param list<array<string, mixed>> $charts */
     public function withCharts(array $charts): self
     {
-        return new self($this->name, $this->cells, $this->mergedRegions, $this->columnWidths,
-            $this->frozenRows, $this->frozenCols, $this->rowHeights, $this->print, $charts);
+        return $this->with(['charts' => $charts]);
+    }
+
+    /**
+     * A copy with some constructor arguments replaced.
+     *
+     * @param  array<string,mixed>  $changes  keyed by constructor parameter name
+     */
+    public function with(array $changes): self
+    {
+        return new self(...array_merge([
+            'name' => $this->name, 'cells' => $this->cells, 'mergedRegions' => $this->mergedRegions,
+            'columnWidths' => $this->columnWidths, 'frozenRows' => $this->frozenRows, 'frozenCols' => $this->frozenCols,
+            'rowHeights' => $this->rowHeights, 'print' => $this->print, 'charts' => $this->charts, 'state' => $this->state,
+            'hiddenRows' => $this->hiddenRows, 'hiddenColumns' => $this->hiddenColumns, 'tables' => $this->tables,
+        ], $changes));
+    }
+
+    /**
+     * The last row and the last 0-based column anything occupies (cells and
+     * merged regions), or [0, -1] for an empty sheet.
+     *
+     * @return array{0:int,1:int}
+     */
+    public function extent(): array
+    {
+        $maxRow = 0;
+        $maxCol = -1;
+        $touch = static function (string $a) use (&$maxRow, &$maxCol): void {
+            if (preg_match('/^([A-Z]+)(\d+)$/', $a, $m) === 1) {
+                $maxRow = max($maxRow, (int) $m[2]);
+                $maxCol = max($maxCol, CellAddress::index($m[1]));
+            }
+        };
+        foreach (array_keys($this->cells) as $a) {
+            $touch((string) $a);
+        }
+        foreach ($this->mergedRegions as $m) {
+            $touch($m->start);
+            $touch($m->end);
+        }
+
+        return [$maxRow, $maxCol];
     }
 
     /** @return array<int,array<string,Cell>>  rowIndex => [colLetter => Cell] */

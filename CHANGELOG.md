@@ -4,7 +4,68 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Added
+
+- **Document exchange (portable content, `fancyContent: 1`).** Implements
+  fancy-conformance's `suites/exchange/SPEC.md`; every applicable suite runs in
+  `tests/Unit/ConformanceTest.php` (301 of 301 rows, nine suites, at 0.37.0).
+  - `Agent::read($bytesOrPath)`: the sibling-named read, taking bytes or a
+    path. `describe($path)` is unchanged.
+  - `Agent::catalog($input)`: sheets (state, used range, counts), defined
+    names, Excel tables and charts, each with the selector that grabs it.
+  - `Agent::extract($input, $selector, $options)`: a range, sheet, defined
+    name or table as portable content. Formulas come back as cached values,
+    never evaluated; hidden sheets, rows and columns are skipped and reported
+    unless the HOST passes `includeHidden`; invisible characters are stripped
+    and counted; reports carry locations, never text; output over a limit is
+    refused, never cut. Display strings follow the writer's formats, rounded
+    half away from zero on the decimal digits (a percent shifts the decimal
+    point; it is never a float multiply).
+  - `Agent::fromPortable($content, $at)` and a sheet `insert` list
+    (`{"type": "portable", "at": "B4", "content": ...}`), expanded by
+    `validateAndRepair` and the write path. Every string is written as
+    `{value: s}`, so a leading `=` stays text; a formula is never written.
+    `validateAndRepair` returns each expansion's report under `inserts`.
+  - `Agent::export($input, $target, $options, $policy)` for `csv`, `markdown`
+    and `xlsx` (from ods, or an xlsx template), plus `ExportPolicy` and
+    `Agent::exportToolDefinition($policy)`. **Off by default**: a null policy
+    allows nothing, and an `allow` in the agent's options throws. CSV
+    formula-injection escaping is on unless the host turns it off. `pdf` and
+    `docx` refuse `export_unavailable` in this release.
+- **The reader reports what exchange needs**, each only when present: sheet
+  `state` (`hidden` / `veryHidden`), `hiddenRows` (1-based), `hiddenColumns`
+  (0-based), `tables`, workbook `definedNames`, and `format.formatCode` for a
+  number-format code no `displayFormat` describes. The ods reader reads hidden
+  sheets, rows and columns too. Hidden rows and columns are listed only as far
+  as the sheet holds anything.
+- **The writer writes `state`, `hiddenRows`, `hiddenColumns` and
+  `format.formatCode`**, so they survive describe -> write. A hidden first
+  sheet gets a visible active tab.
+- Dev: `particle-academy/fancy-conformance` 0.37.0 as an exact-pinned
+  `require-dev` (first-party); the pin is asserted by the conformance test.
+
+### Changed
+
+- `validate()` now refuses a workbook in which every sheet is hidden (Excel
+  will not open one), a `state` other than visible / hidden / veryHidden, an
+  out-of-range `hiddenRows` / `hiddenColumns` entry, an empty or over-255-byte
+  `formatCode`, and invalid `insert` content. **What a consumer must do:**
+  nothing, unless you already pass these keys; none was read before.
+- `Sheet`, `Workbook` and `CellFormat` gain trailing optional constructor
+  arguments. Positional calls are unaffected.
+- **A describe -> write round-trip now keeps hidden sheets, rows and columns
+  hidden.** It used to un-hide them, because neither side knew about them.
+
 ### Fixed
+
+- A sheet's comments, charts and tables are found through the rels part
+  beside the sheet's own file. They were looked up by tab position
+  (`sheet{N}.xml.rels`), which misses them whenever a producer's file names
+  do not follow tab order.
+- `docs/ReadPath.md` said charts are "not parsed" (the reader has parsed them
+  since charts shipped), that shared strings come back as `[shared:N]`
+  placeholders (they are expanded), and that foreign number formats come back
+  as raw `format` strings (they were dropped; they are now `formatCode`).
 
 - **An explicit `{value: <string>}` cell is now written as a string, exactly
   as given.** Numeric-string coercion used to run on the object form too, so

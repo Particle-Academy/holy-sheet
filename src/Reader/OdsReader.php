@@ -71,7 +71,12 @@ final class OdsReader
 
     public function readWorkbook(string $path): Workbook
     {
-        $zip = SourceArchive::fromPath($path);
+        return $this->readArchive(SourceArchive::fromPath($path), $path);
+    }
+
+    /** The same read, from an already-opened (and already limit-checked) archive. */
+    public function readArchive(SourceArchive $zip, string $path = '(bytes)'): Workbook
+    {
         $sourceKind = OfficeTemplate::kind($zip);
         $content = $zip->read('content.xml');
         $styles = $zip->read('styles.xml');
@@ -88,13 +93,19 @@ final class OdsReader
 
         $styleIndex = new OdsStyles($contentXml, $stylesXml === false ? null : $stylesXml);
 
+        $hiddenTableStyles = self::hiddenTableStyles($contentXml);
+
         $sheets = [];
         $body = OdsStyles::child($contentXml, Ns::OFFICE, 'body');
         $spreadsheet = $body === null ? null : OdsStyles::child($body, Ns::OFFICE, 'spreadsheet');
         if ($spreadsheet !== null) {
             foreach ($spreadsheet->children(Ns::TABLE) as $name => $table) {
                 if ($name === 'table') {
-                    $sheets[] = $this->readSheet($table, $styleIndex);
+                    $sheet = $this->readSheet($table, $styleIndex);
+                    if (isset($hiddenTableStyles[(string) $table->attributes(Ns::TABLE)['style-name']])) {
+                        $sheet = $sheet->with(['state' => 'hidden']);
+                    }
+                    $sheets[] = $sheet;
                 }
             }
         }
@@ -106,16 +117,77 @@ final class OdsReader
     {
         $columns = [];
         $next = 0;
-        self::collectColumns($table, $columns, $next);
+        $hiddenColumnRanges = [];
+        self::collectColumns($table, $columns, $next, $hiddenColumnRanges);
 
-        $state = ['row' => 0, 'cells' => [], 'merges' => []];
+        $state = ['row' => 0, 'cells' => [], 'merges' => [], 'hiddenRows' => []];
         $this->walkRows($table, $styles, $columns, $state);
 
-        return new Sheet(
+        $sheet = new Sheet(
             name: (string) $table->attributes(Ns::TABLE)['name'],
             cells: $state['cells'],
             mergedRegions: $state['merges'],
         );
+
+        // Hidden ranges, expanded only as far as the sheet holds anything: the
+        // padding rows and columns every producer repeats to the sheet's edge
+        // are often written hidden, and would otherwise expand to a million rows.
+        [$maxRow, $maxCol] = $sheet->extent();
+
+        return $sheet->with([
+            'hiddenRows' => self::expandRanges($state['hiddenRows'], 1, $maxRow),
+            'hiddenColumns' => self::expandRanges($hiddenColumnRanges, 0, $maxCol),
+        ]);
+    }
+
+    /**
+     * @param  list<array{0:int,1:int}>  $ranges  inclusive
+     * @return list<int>
+     */
+    private static function expandRanges(array $ranges, int $min, int $max): array
+    {
+        $out = [];
+        foreach ($ranges as [$first, $last]) {
+            for ($i = max($first, $min); $i <= min($last, $max); $i++) {
+                $out[$i] = $i;
+            }
+        }
+        ksort($out);
+
+        return array_values($out);
+    }
+
+    /**
+     * Automatic table styles that hide their sheet (`table:display="false"`).
+     *
+     * @return array<string,true>
+     */
+    private static function hiddenTableStyles(SimpleXMLElement $content): array
+    {
+        $out = [];
+        $auto = OdsStyles::child($content, Ns::OFFICE, 'automatic-styles');
+        if ($auto === null) {
+            return $out;
+        }
+        foreach ($auto->children(Ns::STYLE) as $name => $el) {
+            if ($name !== 'style' || (string) $el->attributes(Ns::STYLE)['family'] !== 'table') {
+                continue;
+            }
+            $props = OdsStyles::child($el, Ns::STYLE, 'table-properties');
+            if ($props !== null && (string) $props->attributes(Ns::TABLE)['display'] === 'false') {
+                $out[(string) $el->attributes(Ns::STYLE)['name']] = true;
+            }
+        }
+
+        return $out;
+    }
+
+    /** `collapse` and `filter` both keep a row or column off the screen. */
+    private static function isHiddenVisibility(SimpleXMLElement $el): bool
+    {
+        $v = (string) ($el->attributes(Ns::TABLE)['visibility'] ?? '');
+
+        return $v === 'collapse' || $v === 'filter';
     }
 
     /**
@@ -123,7 +195,7 @@ final class OdsReader
      *
      * @param  list<array{0:int,1:int,2:string}>  $columns
      */
-    private static function collectColumns(SimpleXMLElement $container, array &$columns, int &$next): void
+    private static function collectColumns(SimpleXMLElement $container, array &$columns, int &$next, array &$hidden = []): void
     {
         foreach ($container->children(Ns::TABLE) as $name => $el) {
             if ($name === 'table-column') {
@@ -133,9 +205,12 @@ final class OdsReader
                 if ($style !== '') {
                     $columns[] = [$next, $next + $repeat - 1, $style];
                 }
+                if (self::isHiddenVisibility($el)) {
+                    $hidden[] = [$next, $next + $repeat - 1];
+                }
                 $next += $repeat;
             } elseif (in_array($name, ['table-columns', 'table-header-columns', 'table-column-group'], true)) {
-                self::collectColumns($el, $columns, $next);
+                self::collectColumns($el, $columns, $next, $hidden);
             }
             if ($next >= self::MAX_COLUMNS) return;
         }
@@ -167,6 +242,10 @@ final class OdsReader
         $rowAttrs = $row->attributes(Ns::TABLE);
         $repeat = max(1, (int) (string) ($rowAttrs['number-rows-repeated'] ?? '1'));
         $rowStyle = (string) ($rowAttrs['default-cell-style-name'] ?? '');
+        if (self::isHiddenVisibility($row)) {
+            // 1-based, inclusive; clamped to the sheet's extent once it is known
+            $state['hiddenRows'][] = [$state['row'] + 1, $state['row'] + $repeat];
+        }
 
         // One pass over the cells, reading each one that holds anything ONCE,
         // however many columns and rows it repeats across.

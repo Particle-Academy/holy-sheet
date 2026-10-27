@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace HolySheet\Schema;
 
 use HolySheet\Exceptions\SchemaException;
+use HolySheet\Exchange\Insert;
 use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\ChartRange;
 
@@ -45,8 +46,16 @@ final class Validator
             return $errors;
         }
 
+        $visible = 0;
         foreach ($schema['sheets'] as $i => $sheet) {
             $errors = array_merge($errors, $this->validateSheet($sheet, "sheets[{$i}]"));
+            if (!is_array($sheet) || !in_array($sheet['state'] ?? 'visible', ['hidden', 'veryHidden'], true)) {
+                $visible++;
+            }
+        }
+        if ($visible === 0) {
+            $errors[] = $this->error('sheets', 'at least one visible sheet', 'every sheet hidden', null,
+                'Excel refuses a workbook with no visible sheet. Leave `state` off (visible) on at least one.');
         }
 
         return $errors;
@@ -80,11 +89,36 @@ final class Validator
         $repairer = new Repairer();
         [$repairedSchema, $repairs] = $repairer->repair($schema);
         $errors = $this->validate($repairedSchema);
-        return [
+        $out = [
             'schema' => $repairedSchema,
             'errors' => $errors,
             'repairs' => $repairs,
         ];
+
+        // Expand every sheet's `insert` list into cells, once it validates: the
+        // returned schema is then exactly what will be written, and each
+        // expansion's report (what portable content could not carry) is
+        // returned alongside it rather than lost.
+        $insertErrors = array_filter($errors, static fn (array $e): bool => str_contains($e['path'], '.insert'));
+        if ($insertErrors === [] && is_array($repairedSchema['sheets'] ?? null)) {
+            $reports = [];
+            foreach ($repairedSchema['sheets'] as $i => $sheet) {
+                if (!is_array($sheet) || !array_key_exists('insert', $sheet)) {
+                    continue;
+                }
+                [$expanded, $sheetReports] = Insert::expand($sheet);
+                $out['schema']['sheets'][$i] = $expanded;
+                foreach ($sheetReports as $j => $report) {
+                    $reports[] = ['sheet' => $i, 'insert' => $j, 'report' => $report];
+                }
+                $out['repairs'][] = "sheets[{$i}].insert: expanded ".count($sheetReports).' portable placement(s) into cells';
+            }
+            if ($reports !== []) {
+                $out['inserts'] = $reports;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -107,7 +141,13 @@ final class Validator
 
         // Either columns + rows OR cells (sparse map) OR both must be present
         $hasColumnsRows = isset($sheet['rows']) || isset($sheet['columns']);
-        $hasCells = isset($sheet['cells']);
+        $hasCells = isset($sheet['cells']) || isset($sheet['insert']);
+
+        if (array_key_exists('insert', $sheet)) {
+            foreach (Insert::problems($sheet['insert']) as [$sub, $expected, $got, $value, $hint]) {
+                $errors[] = $this->error("{$path}.insert{$sub}", $expected, $got, $value, $hint);
+            }
+        }
 
         if (!$hasColumnsRows && !$hasCells) {
             $errors[] = $this->error($path, 'object with rows OR cells', 'object without either', $sheet,
@@ -205,6 +245,38 @@ final class Validator
                         $errors[] = $this->error("{$path}.rowHeights.{$row}", 'a non-negative number of pixels', $this->typeOf($px), $px,
                             'A height is a number of pixels, like 28 (20 is a default row).');
                     }
+                }
+            }
+        }
+
+        if (array_key_exists('state', $sheet) && !in_array($sheet['state'], ['visible', 'hidden', 'veryHidden'], true)) {
+            $errors[] = $this->error("{$path}.state", 'one of: visible, hidden, veryHidden', $this->typeOf($sheet['state']), $sheet['state'],
+                'A hidden sheet is not shown in the tab strip; veryHidden cannot be unhidden from Excel\'s UI. Omit for visible.');
+        }
+        foreach (['hiddenRows' => [1, 1048576, 'a 1-based row number', 'Row numbers as Excel shows them: 1 is the first row.'],
+            'hiddenColumns' => [0, ColumnWidths::MAX_INDEX, 'a 0-based column index', 'Column indexes as columnWidths uses them: 0 is column A.']] as $key => [$min, $max, $expected, $hint]) {
+            if (!array_key_exists($key, $sheet)) {
+                continue;
+            }
+            if (!is_array($sheet[$key]) || !array_is_list($sheet[$key])) {
+                $errors[] = $this->error("{$path}.{$key}", 'array of '.$expected.'s', $this->typeOf($sheet[$key]), $sheet[$key], $hint);
+                continue;
+            }
+            foreach ($sheet[$key] as $k => $v) {
+                if (!is_int($v) || $v < $min || $v > $max) {
+                    $errors[] = $this->error("{$path}.{$key}[{$k}]", $expected, $this->typeOf($v), $v, $hint);
+                }
+            }
+        }
+        if (isset($sheet['cells']) && is_array($sheet['cells'])) {
+            foreach ($sheet['cells'] as $address => $cell) {
+                if (!is_array($cell) || !is_array($cell['format'] ?? null) || !array_key_exists('formatCode', $cell['format'])) {
+                    continue;
+                }
+                $code = $cell['format']['formatCode'];
+                if (!is_string($code) || $code === '' || strlen($code) > 255) {
+                    $errors[] = $this->error("{$path}.cells.{$address}.format.formatCode", 'a non-empty number-format code of at most 255 bytes', $this->typeOf($code), $code,
+                        'A raw Excel number-format code, as describe() reads it from a file. Prefer displayFormat for anything it covers.');
                 }
             }
         }

@@ -188,6 +188,39 @@ Resolves at write time to `SUM/AVERAGE/COUNT/MIN/MAX` formulas appended in a row
 
 Keys are 0-based column indexes. The package converts pixels to Excel's character-width unit (Excel uses ~7 pixels per character).
 
+## Hidden sheets, rows and columns
+
+```json
+"state": "hidden",          // or "veryHidden" (not unhideable from Excel's UI); omit for visible
+"hiddenRows": [3, 4],       // 1-based row numbers
+"hiddenColumns": [2]        // 0-based column indexes, as columnWidths uses
+```
+
+At least one sheet must stay visible; Excel refuses a workbook with none. `describe()` reads all three back, so a hidden sheet stays hidden through describe -> write.
+
+## Foreign number formats
+
+`format.formatCode` carries a raw Excel number-format code that no `displayFormat` describes (`"# ?/?"`, a custom accounting code). `describe()` reports it for every code it does not recognise, and the writer writes it back verbatim, so it round-trips. A `displayFormat` on the same cell wins. At most 255 bytes.
+
+## Placing portable content (`insert`)
+
+A sheet may carry an `insert` list of portable content (`fancyContent: 1`, the format `Agent::extract()` and the other document packages produce), each placed with its top-left cell at `at`:
+
+```json
+"insert": [
+  { "type": "portable", "at": "B4", "content": { "fancyContent": 1, "items": [ ... ] } }
+]
+```
+
+`validate()` checks the content (closed objects, limits) and reports a refusal at `sheets[i].insert[j].content`, with the JSON pointer of the bad spot as the error's `value`. `validateAndRepair()` and the write path expand it into ordinary `cells`, `mergedRegions` and `columnWidths`; `validateAndRepair()` returns what each expansion could not carry under `inserts`.
+
+- **Every string is written as `{value: s}`**, so text beginning with `=` stays text and never becomes a formula.
+- A cell's `formula` is never written: the cell gets its value, reported `formula-as-value`.
+- Tables stack downwards from `at`, one empty row apart; a caption is a string cell above its table. Text, list and image items are not written (`non-table-item`).
+- Where an inserted cell and an explicit `cells` entry share an address, the explicit entry wins, as `cells` already wins over `rows`.
+
+`Agent::fromPortable($content, 'B4')` returns the same expansion as a cell map, without a workbook around it.
+
 ## Date handling
 
 Pass dates as ISO-8601 strings (`"2026-05-01"`, `"2026-05-01T14:30:00Z"`) OR PHP `DateTimeInterface` objects. Holy Sheet converts to Excel serial numbers (days since 1899-12-30, with time as fractional days).
@@ -284,7 +317,7 @@ Agentic loops should call `lint()` *after* validation/repair and *before* writin
 ## See also
 
 - [Recipes](./Recipes.md) — concrete end-to-end patterns
-- [ReadPath](./ReadPath.md) — `Agent::describe()` contract + lossy-fields list
+- [ReadPath](./ReadPath.md) — `Agent::describe()` / `read()` contract, lossy-fields list, and catalog / extract / export
 - [LaravelAdapter](./LaravelAdapter.md) — facade, service provider, artisan command
 - [JSON Schema](../skills/holy-sheet.schema.json) — machine-readable spec
 - [SKILL](../skills/holy-sheet.md) — agent-facing prompt

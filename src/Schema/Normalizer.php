@@ -6,6 +6,7 @@ namespace HolySheet\Schema;
 
 use DateTimeInterface;
 use HolySheet\Exceptions\SchemaException;
+use HolySheet\Exchange\Insert;
 use HolySheet\Workbook\Cell;
 use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\CellComment;
@@ -32,6 +33,9 @@ final class Normalizer
     /** @param  array<string,mixed>  $sheet */
     private function normalizeSheet(array $sheet): Sheet
     {
+        // Portable content placed with `insert` becomes ordinary cells first;
+        // everything below then treats it like any other cell map.
+        [$sheet] = Insert::expand($sheet);
         $name = (string) $sheet['name'];
 
         // NOTE: there is no separate "cells-only" path. A sheet with no columns
@@ -137,6 +141,9 @@ final class Normalizer
             rowHeights: self::normalizeRowHeights($sheet['rowHeights'] ?? null),
             print: self::normalizePrint($sheet['print'] ?? null),
             charts: self::normalizeCharts($sheet['charts'] ?? null, $name, $cells),
+            state: in_array($sheet['state'] ?? null, ['hidden', 'veryHidden'], true) ? $sheet['state'] : 'visible',
+            hiddenRows: self::normalizeIndexes($sheet['hiddenRows'] ?? null, 1, 1048576),
+            hiddenColumns: self::normalizeIndexes($sheet['hiddenColumns'] ?? null, 0, ColumnWidths::MAX_INDEX),
         );
     }
 
@@ -248,6 +255,28 @@ final class Normalizer
      *
      * @return array<int,float>
      */
+    /**
+     * A list of row numbers or column indexes: integers in range, deduplicated,
+     * ascending. Anything else is dropped (the validator has already said so).
+     *
+     * @return list<int>
+     */
+    public static function normalizeIndexes(mixed $list, int $min, int $max): array
+    {
+        if (!is_array($list)) {
+            return [];
+        }
+        $out = [];
+        foreach ($list as $v) {
+            if (is_int($v) && $v >= $min && $v <= $max) {
+                $out[$v] = $v;
+            }
+        }
+        ksort($out);
+
+        return array_values($out);
+    }
+
     public static function normalizeRowHeights(mixed $map): array
     {
         if (!is_array($map)) {

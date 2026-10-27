@@ -38,6 +38,31 @@ final class FormatSniffer
             }
             throw $error;
         }
+        return self::sniffArchive($zip, $path);
+    }
+
+    /**
+     * The same decision for bytes: the opened archive and which reader it needs.
+     *
+     * @return array{0:SourceArchive,1:self::XLSX|self::ODS}
+     */
+    public static function sniffBytes(string $bytes): array
+    {
+        try {
+            $zip = SourceArchive::open($bytes);
+        } catch (ArchiveRefused $error) {
+            if ($error->reason === 'archive_corrupt' && ! str_starts_with($bytes, 'PK')) {
+                throw UnsupportedFormatException::notAZip('(bytes)');
+            }
+            throw $error;
+        }
+
+        return [$zip, self::sniffArchive($zip, '(bytes)')];
+    }
+
+    /** @return self::XLSX|self::ODS */
+    public static function sniffArchive(SourceArchive $zip, string $label): string
+    {
         $mimetype = $zip->read('mimetype');
         $mimetype = is_string($mimetype) ? trim($mimetype) : null;
         if ($mimetype !== null && in_array($mimetype, self::ODS_MIMETYPES, true)) {
@@ -46,6 +71,6 @@ final class FormatSniffer
         if ($zip->read('xl/workbook.xml') !== null) {
             return self::XLSX;
         }
-        throw UnsupportedFormatException::unknownPackage($path, $mimetype);
+        throw UnsupportedFormatException::unknownPackage($label, $mimetype);
     }
 }

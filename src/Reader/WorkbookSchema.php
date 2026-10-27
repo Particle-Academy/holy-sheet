@@ -30,6 +30,9 @@ final class WorkbookSchema
         foreach ($workbook->sheets as $sheet) {
             $schema['sheets'][] = self::sheetToSchema($sheet);
         }
+        if ($workbook->definedNames !== []) {
+            $schema['definedNames'] = $workbook->definedNames;
+        }
         if ($workbook->meta !== []) {
             $schema['meta'] = $workbook->meta;
         }
@@ -83,6 +86,12 @@ final class WorkbookSchema
         if ($sheet->charts !== []) {
             $out['charts'] = array_map(static fn (array $c): array => self::chartToSchema($c, $sheet->name), $sheet->charts);
         }
+        // Visibility: said only when something is hidden, so a plain workbook
+        // describes exactly as it always has.
+        if ($sheet->state !== 'visible') $out['state'] = $sheet->state;
+        if ($sheet->hiddenRows !== []) $out['hiddenRows'] = $sheet->hiddenRows;
+        if ($sheet->hiddenColumns !== []) $out['hiddenColumns'] = $sheet->hiddenColumns;
+        if ($sheet->tables !== []) $out['tables'] = $sheet->tables;
         return $out;
     }
 
@@ -163,6 +172,7 @@ final class WorkbookSchema
         if ($f->borderBottom !== null) $out['borderBottom'] = $f->borderBottom;
         if ($f->borderLeft !== null) $out['borderLeft'] = $f->borderLeft;
         if ($f->currency !== null) $out['currency'] = $f->currency;
+        if ($f->formatCode !== null) $out['formatCode'] = $f->formatCode;
         return $out;
     }
 

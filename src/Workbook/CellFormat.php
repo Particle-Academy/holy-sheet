@@ -29,6 +29,8 @@ final class CellFormat
         public readonly ?string $borderBottom = null,
         public readonly ?string $borderLeft = null,
         public readonly ?string $currency = null,          // ISO-4217 (USD/EUR/JPY)
+        // A number-format code no displayFormat describes: a foreign code, kept verbatim so it round-trips.
+        public readonly ?string $formatCode = null,
     ) {}
 
     /** Stable key used for dedup in StylesRegistry. */
@@ -48,6 +50,7 @@ final class CellFormat
             'bb' => $this->borderBottom,
             'bl' => $this->borderLeft,
             'cu' => $this->currency,
+            'fc' => $this->formatCode,
         ]));
     }
 
@@ -65,7 +68,8 @@ final class CellFormat
             && $this->borderRight === null
             && $this->borderBottom === null
             && $this->borderLeft === null
-            && $this->currency === null;
+            && $this->currency === null
+            && $this->formatCode === null;
     }
 
     /** @param  array<string,mixed>  $a */
@@ -85,6 +89,7 @@ final class CellFormat
             borderBottom: $a['borderBottom'] ?? null,
             borderLeft: $a['borderLeft'] ?? null,
             currency: $a['currency'] ?? null,
+            formatCode: isset($a['formatCode']) && is_string($a['formatCode']) ? $a['formatCode'] : null,
         );
     }
 
@@ -106,6 +111,8 @@ final class CellFormat
             borderBottom: $other->borderBottom ?? $this->borderBottom,
             borderLeft: $other->borderLeft ?? $this->borderLeft,
             currency: $other->currency ?? $this->currency,
+            // A displayFormat set on top replaces a foreign code beneath it.
+            formatCode: $other->displayFormat !== null ? $other->formatCode : ($other->formatCode ?? $this->formatCode),
         );
     }
 }

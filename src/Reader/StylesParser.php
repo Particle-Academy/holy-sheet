@@ -55,13 +55,18 @@ final class StylesParser
                 $numFmtParsed = $customCode !== null
                     ? NumFmtParser::parse($customCode)
                     : NumFmtParser::parseBuiltin($numFmtId);
+                // A code no displayFormat describes is kept verbatim, so it is
+                // reported (and written back) rather than silently lost.
+                $foreign = $numFmtParsed === null && $customCode !== null && trim($customCode) !== '' && strcasecmp(trim($customCode), 'General') !== 0
+                    ? $customCode
+                    : null;
 
-                if ($xfs === [] && $font === null && $fill === null && $border === null && !$numFmtParsed && $align === null) {
+                if ($xfs === [] && $font === null && $fill === null && $border === null && !$numFmtParsed && $foreign === null && $align === null) {
                     $xfs[] = null;
                     continue;
                 }
 
-                $xfs[] = self::buildCellFormat($font, $fill, $border, $numFmtParsed, $align);
+                $xfs[] = self::buildCellFormat($font, $fill, $border, $numFmtParsed, $align, $foreign);
             }
         }
 
@@ -137,7 +142,7 @@ final class StylesParser
         return $borders;
     }
 
-    private static function buildCellFormat(?array $font, ?string $fill, ?array $border, ?array $numFmt, ?string $align): CellFormat
+    private static function buildCellFormat(?array $font, ?string $fill, ?array $border, ?array $numFmt, ?string $align, ?string $formatCode = null): CellFormat
     {
         return new CellFormat(
             bold: (bool) ($font['bold'] ?? false),
@@ -153,6 +158,7 @@ final class StylesParser
             borderBottom: $border['bottom'] ?? null,
             borderLeft: $border['left'] ?? null,
             currency: $numFmt['currency'] ?? null,
+            formatCode: $formatCode,
         );
     }
 

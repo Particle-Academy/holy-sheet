@@ -332,7 +332,7 @@ final class Normalizer
             $rawValue = $cellData['value'] ?? null;
             $cells[$address] = new Cell(
                 address: $address,
-                value: $this->coerceValue($rawValue, $format, $address, $sheetName),
+                value: $this->coerceValue($rawValue, $format, $address, $sheetName, explicit: true),
                 formula: $cellData['formula'] ?? null,
                 format: $format,
                 comment: $comment,
@@ -444,7 +444,7 @@ final class Normalizer
             $rawValue = $value['value'] ?? null;
             return new Cell(
                 address: $address,
-                value: $this->coerceValue($rawValue, $merged, $address, $sheetName),
+                value: $this->coerceValue($rawValue, $merged, $address, $sheetName, explicit: true),
                 formula: $value['formula'] ?? null,
                 format: $merged,
                 comment: $comment,
@@ -482,7 +482,15 @@ final class Normalizer
         return [$value, null];
     }
 
-    private function coerceValue(mixed $value, ?CellFormat $format, string $address = '?', ?string $sheetName = null): string|int|float|bool|null
+    /**
+     * @param  bool  $explicit  The value came from an object cell's `value`
+     *   key. An explicit string is the caller saying "this text, exactly", so
+     *   it is never coerced to a number: `{"value": "+1"}` stays "+1" and
+     *   `{"value": "007"}` stays "007". Only a date/datetime display format
+     *   still turns a string into a serial, because that conversion is what
+     *   the format asks for. Bare values keep numeric-string coercion.
+     */
+    private function coerceValue(mixed $value, ?CellFormat $format, string $address = '?', ?string $sheetName = null, bool $explicit = false): string|int|float|bool|null
     {
         if ($value === null) return null;
 
@@ -491,6 +499,10 @@ final class Normalizer
             if ($value instanceof DateTimeInterface || (is_string($value) && trim($value) !== '')) {
                 return DateConverter::toSerial($value, $df === 'datetime');
             }
+        }
+
+        if ($explicit && is_string($value)) {
+            return $value;
         }
 
         if (is_string($value) && is_numeric($value)) {

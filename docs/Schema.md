@@ -118,6 +118,11 @@ A row is an array of values, one per column. Each value can be:
 > strings (in `rows` and in the sparse `cells` map). An object cell is always taken
 > literally, so `{ "value": "=text" }` is the escape hatch for a genuine leading-`=`
 > string, and `{ "formula": "..." }` is respected as-is.
+>
+> The same holds for numbers: a bare numeric string such as `"+1"` or `"007"` is
+> coerced to a number, but an object cell's string value is written as text exactly
+> as given, so `{ "value": "007" }` keeps its leading zeros. (A `date` / `datetime`
+> display format still turns a string into a date serial.)
 
 ## Cells (sparse mode)
 

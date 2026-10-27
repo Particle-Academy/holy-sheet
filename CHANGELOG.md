@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-10-27
+
 ### Added
 
 - **Document exchange (portable content, `fancyContent: 1`).** Implements

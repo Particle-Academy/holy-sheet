@@ -271,7 +271,10 @@ final class XlsxWriter
         $rowsXml = '';
         foreach ($rows as $rowIndex => $row) {
             $cellsXml = '';
-            ksort($row);
+            // Ascending column INDEX (A..Z, AA, ...), as CT_Row requires. A
+            // string ksort gives A, AA, ..., B, and Google Sheets silently
+            // drops every cell after the first out-of-order one.
+            uksort($row, static fn (string $a, string $b): int => CellAddress::index($a) <=> CellAddress::index($b));
             foreach ($row as $col => $cell) {
                 $cellsXml .= $this->cellXml($cell, $styles);
             }

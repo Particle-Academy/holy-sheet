@@ -82,11 +82,17 @@ order, self-closing style and the absence of inter-element whitespace are what
 the ports' parity suites compare part by part. A DOM serialiser would own those
 decisions and break every fixture in both ports.
 
-**Cells within a row are emitted in `ksort` order on the column LETTER**
-(`Sheet::rows()` keys a row by `A`, `B`, `AA`, ...), so a sheet wider than 26
-columns writes `A, AA, AB, ..., B, C`. Not Excel's order, and replicated
-byte-for-byte by both ports. Changing it changes every wide sheet in all three
-engines at once; do not tidy it in passing.
+**Cells within a row are emitted in ascending column INDEX** (`A..Z, AA, AB,
+...`), as OOXML requires of `CT_Row`. `Sheet::rows()` keys a row by the column
+LETTER, so `XlsxWriter` sorts with `uksort` on `CellAddress::index`; a plain
+`ksort` there is a string sort and writes `A, AA, AB, ..., B, C`. That was the
+behaviour until 2026-10-28, and it lost data: a holy-sheet workbook whose row 1
+was written `A1, AA1..AE1, B1..Z1`, imported into Google Sheets and exported
+again, kept only `A1` in that row. Google Sheets drops the rest of a row
+silently after the first out-of-order cell. (LibreOffice 26.2 kept every cell in
+either order; Excel was not measured.) Both ports mirror the index order
+byte-for-byte, pinned by `WideRowCellOrderTest` here and the ports' `wide`
+parity fixtures.
 
 **The container is not deterministic here, and does not need to be.** The
 writer goes through `ZipArchive` (DEFLATE, real mtimes). Parity is defined on

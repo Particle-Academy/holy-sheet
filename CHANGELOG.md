@@ -19,6 +19,9 @@ you assert on the exact set of issues a formula produces.
 - **`^` binds tighter than `*` and `/`.** `=2*3^2` is 18, not 36. It stays
   left-associative (`=2^3^2` is 64) and below negation (`=-2^2` is 4), as in
   Excel.
+- **A doubled quote inside text is one quote.** `="a""b"` is the three
+  characters `a"b`; it used to lint as `#NAME?`. A text literal that never
+  closes (`="abc`) is now reported instead of passing.
 
 ## [2.11.0] - 2026-10-27
 

@@ -158,15 +158,28 @@ final class FormulaLinter
                 $tokens[] = ['type' => 'NUMBER', 'value' => substr($src, $start, $i - $start)];
                 continue;
             }
-            // String literal
+            // String literal, with Excel's "" for a literal quote: "a""b" is a"b.
+            // A literal that never closes is a syntax error, not text running
+            // to the end of the formula.
             if ($ch === '"') {
                 $i++;
-                $start = $i;
-                while ($i < $len && $src[$i] !== '"') {
+                $value = '';
+                while (true) {
+                    if ($i >= $len) {
+                        throw new LinterError(self::ERR_NAME);
+                    }
+                    if ($src[$i] === '"') {
+                        if ($i + 1 < $len && $src[$i + 1] === '"') {
+                            $value .= '"';
+                            $i += 2;
+                            continue;
+                        }
+                        $i++;
+                        break;
+                    }
+                    $value .= $src[$i];
                     $i++;
                 }
-                $value = substr($src, $start, $i - $start);
-                $i++; // consume closing quote
                 $tokens[] = ['type' => 'STRING', 'value' => $value];
                 continue;
             }

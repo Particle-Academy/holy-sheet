@@ -272,3 +272,19 @@ it('binds ^ tighter than * and /', function () {
         // Percent binds tighter still: (50%)^2.
         ->and(lintClaim('50%^2=0.25'))->toBe([]);
 });
+
+it('reads a doubled quote inside a text literal as one quote', function () {
+    // ="a""b" is the three characters a"b.
+    expect(lintClaim('LEN("a""b")=3'))->toBe([])
+        ->and(lintClaim('"a""b"="a"&"""b"'))->toBe([])
+        ->and(lintClaim('LEN("""")=1'))->toBe([])
+        ->and(lintClaim('LEN("")=0'))->toBe([]);
+});
+
+it('reports a text literal that never closes', function () {
+    // The old tokenizer ran the literal to the end of the formula and passed it.
+    $issues = lintFormula('"abc');
+
+    expect($issues)->toHaveCount(1)
+        ->and($issues[0]['error'])->toBe('#NAME?');
+});

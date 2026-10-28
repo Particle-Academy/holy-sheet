@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.11.2] - 2026-10-28
+
 ### Fixed
 
 - **`IF` evaluates only the branch it takes, as Excel does.** What you will

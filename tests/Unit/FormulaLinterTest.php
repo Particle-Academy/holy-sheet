@@ -225,9 +225,9 @@ it('reports #NAME? for a quoted name that is not a sheet reference', function ()
  *
  * The linter only reports errors, so a value is observed through a division:
  * `1/(<claim>)` lints clean exactly when the claim is TRUE (1/1), and as
- * #DIV/0! when it is FALSE (1/0). Not IF: this linter evaluates both of IF's
- * branches eagerly, so `IF(claim, 1, 1/0)` is #DIV/0! either way.
- * holy-sheet writes for Excel, so Excel decides.
+ * #DIV/0! when it is FALSE (1/0). Division rather than IF because it is the
+ * smaller claim: it does not depend on IF being lazy, which is tested on its
+ * own below. holy-sheet writes for Excel, so Excel decides.
  */
 
 /** @param array<string,mixed> $cells */
@@ -412,4 +412,76 @@ it('reports a text literal that never closes', function () {
 
     expect($issues)->toHaveCount(1)
         ->and($issues[0]['error'])->toBe('#NAME?');
+});
+
+/*
+ * IF is lazy, as in Excel: only the branch it takes is evaluated. The linter
+ * evaluates while it parses, so the untaken branch is still PARSED (a syntax
+ * error or an unknown function there is still reported) but never EVALUATED.
+ */
+
+it('does not evaluate the branch IF does not take', function () {
+    // The guard every spreadsheet writes. Eager IF reported #DIV/0! on it.
+    expect(lintFormula('IF(A2=0,0,1/A2)', ['A2' => ['value' => 0]]))->toBe([])
+        ->and(lintFormula('IF(TRUE,1,1/0)'))->toBe([])
+        ->and(lintFormula('IF(FALSE,1/0,1)'))->toBe([])
+        ->and(lintFormula('IF(1,2,1/0)+1'))->toBe([])
+        // An untaken branch reads no cells, so their text and errors stay out.
+        ->and(lintFormula('IF(TRUE,1,A1*2)', ['A1' => ['value' => 'Annual']]))->toBe([])
+        ->and(lintFormula('IF(FALSE,Nope!A1,1)'))->toBe([])
+        ->and(lintFormula('IF(TRUE,1,foo)'))->toBe([])
+        ->and(lintFormula('IF(TRUE,1,A1:foo)'))->toBe([]);
+});
+
+it('still evaluates the branch IF takes', function () {
+    foreach (['IF(TRUE,1/0,1)', 'IF(FALSE,1,1/0)', 'IF(A2=0,1/A2,0)'] as $formula) {
+        $issues = lintFormula($formula, ['A2' => ['value' => 0]]);
+        expect($issues)->toHaveCount(1)
+            ->and($issues[0]['error'])->toBe('#DIV/0!');
+    }
+});
+
+it('reads an untaken IF branch without evaluating anything inside it, nested IFs included', function () {
+    expect(lintFormula('IF(TRUE,1,IF(1/0,1/0,1/0))'))->toBe([])
+        ->and(lintFormula('IF(FALSE,IF(1/0,1,2),3)'))->toBe([])
+        ->and(lintFormula('IF(TRUE,1,SUM(1/0,"x"*2)&-("y")%)'))->toBe([])
+        ->and(lintFormula('IF(TRUE,IF(FALSE,1/0,2),3)'))->toBe([]);
+});
+
+it('takes the else branch as FALSE when IF has none', function () {
+    // =IF(FALSE,1) is FALSE in Excel, and FALSE is not an error.
+    expect(lintFormula('IF(FALSE,1/0)'))->toBe([])
+        // Through &, where FALSE is "FALSE" and a blank is "": IF(...)=FALSE
+        // cannot tell them apart, since a blank equals FALSE.
+        ->and(lintClaim('IF(FALSE,1)&""="FALSE"'))->toBe([]);
+});
+
+it('still reports a syntax error inside an untaken IF branch', function () {
+    foreach (['IF(TRUE,1,2+)', 'IF(FALSE,(1,2)', 'IF(TRUE,1,"abc)', 'IF(TRUE,1,2 3)'] as $formula) {
+        $issues = lintFormula($formula);
+        expect($issues)->toHaveCount(1)
+            ->and($issues[0]['error'])->toBe('#NAME?')
+            ->and($issues[0]['hint'])->toStartWith('Syntax error: ');
+    }
+});
+
+it('parses the whole IF before an error in its condition propagates', function () {
+    // Excel refuses a formula it cannot parse, so the syntax error is the one
+    // to report. (A computed error such as 1/0 still stops the parse where it
+    // arises, in IF as anywhere else in a formula; this is the error the
+    // condition evaluates to.)
+    $issues = lintFormula('IF(A1,1,2+)', ['A1' => ['formula' => '1/0']]);
+    $z1 = array_values(array_filter($issues, fn ($i) => $i['address'] === 'Z1'));
+
+    expect($z1)->toHaveCount(1)
+        ->and($z1[0]['error'])->toBe('#NAME?')
+        ->and($z1[0]['hint'])->toStartWith('Syntax error: ');
+});
+
+it('still reports #VALUE! for an IF with fewer than two arguments', function () {
+    foreach (['IF(TRUE)', 'IF()'] as $formula) {
+        $issues = lintFormula($formula);
+        expect($issues)->toHaveCount(1)
+            ->and($issues[0]['error'])->toBe('#VALUE!');
+    }
 });

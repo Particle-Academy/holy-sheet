@@ -4,6 +4,24 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`IF` evaluates only the branch it takes, as Excel does.** What you will
+  notice: **fewer false `#DIV/0!` reports.** The guard every spreadsheet writes,
+  `=IF(A2=0,0,1/A2)` with A2 = 0, used to lint as `#DIV/0!` because both
+  branches were evaluated; it now lints clean. The same holds for any error in
+  the untaken branch: `#VALUE!` from text in arithmetic, `#REF!` from a missing
+  sheet, or an error held by a cell the branch reads. Nothing to do.
+  - The untaken branch is still **parsed**, so a syntax error or an unknown
+    function there is still `#NAME?` (the 2.11.1 rule that Excel resolves names
+    before it evaluates is unchanged).
+  - An error in the condition still propagates, but now only after the whole
+    `IF` has been parsed, so a syntax error later in it is the one reported.
+  - `IF` with no else branch still gives FALSE when the condition is FALSE, and
+    fewer than two arguments is still `#VALUE!`.
+  - `IFERROR` is not in the linter's vocabulary: it is `#NAME?` ("Unknown
+    function IFERROR"), as before.
+
 ## [2.11.1] - 2026-10-28
 
 ### Fixed

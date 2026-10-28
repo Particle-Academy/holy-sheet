@@ -71,11 +71,20 @@ final class FormulaLinter
      */
     private array $nameCauses = [];
 
+    /**
+     * Greater than 0 while parsing an IF branch that is not taken. The parser
+     * evaluates as it goes, so a skipped branch is still PARSED (its syntax
+     * errors and unknown functions are reported) but nothing in it is
+     * EVALUATED: no operator runs, no cell is read, and every value is null.
+     */
+    private int $skipping = 0;
+
     public function lint(array $schema): array
     {
         $workbook = (new Normalizer())->normalize($schema);
         $this->sheetNames = [];
         $this->nameCauses = [];
+        $this->skipping = 0;
         foreach ($workbook->sheets as $sheet) {
             $this->sheetNames[mb_strtolower($sheet->name)] = $sheet->name;
         }
@@ -287,7 +296,7 @@ final class FormulaLinter
             $op = $tokens[$pos]['value'];
             $pos++;
             $right = $this->parseConcat($tokens, $pos, $sheet, $index, $cache, $stack);
-            $left = $this->compare($left, $right, $op);
+            $left = $this->skipping > 0 ? null : $this->compare($left, $right, $op);
         }
         return $left;
     }
@@ -298,7 +307,7 @@ final class FormulaLinter
         while ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === '&') {
             $pos++;
             $right = $this->parseArith($tokens, $pos, $sheet, $index, $cache, $stack);
-            $left = $this->coerceString($left).$this->coerceString($right);
+            $left = $this->skipping > 0 ? null : $this->coerceString($left).$this->coerceString($right);
         }
         return $left;
     }
@@ -311,6 +320,10 @@ final class FormulaLinter
             $op = $tokens[$pos]['value'];
             $pos++;
             $right = $this->parseTerm($tokens, $pos, $sheet, $index, $cache, $stack);
+            if ($this->skipping > 0) {
+                $left = null;
+                continue;
+            }
             $a = $this->coerceNumber($left);
             $b = $this->coerceNumber($right);
             $left = $op === '+' ? $a + $b : $a - $b;
@@ -326,6 +339,10 @@ final class FormulaLinter
             $op = $tokens[$pos]['value'];
             $pos++;
             $right = $this->parsePower($tokens, $pos, $sheet, $index, $cache, $stack);
+            if ($this->skipping > 0) {
+                $left = null;
+                continue;
+            }
             $a = $this->coerceNumber($left);
             $b = $this->coerceNumber($right);
             $left = match ($op) {
@@ -347,7 +364,7 @@ final class FormulaLinter
         while ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === '^') {
             $pos++;
             $right = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
-            $left = $this->coerceNumber($left) ** $this->coerceNumber($right);
+            $left = $this->skipping > 0 ? null : $this->coerceNumber($left) ** $this->coerceNumber($right);
         }
         return $left;
     }
@@ -357,7 +374,7 @@ final class FormulaLinter
         if ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === '-') {
             $pos++;
             $v = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
-            return -$this->coerceNumber($v);
+            return $this->skipping > 0 ? null : -$this->coerceNumber($v);
         }
         if ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === '+') {
             $pos++;
@@ -376,7 +393,7 @@ final class FormulaLinter
         $value = $this->parsePrimary($tokens, $pos, $sheet, $index, $cache, $stack);
         while ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === '%') {
             $pos++;
-            $value = $this->coerceNumber($value) / 100.0;
+            $value = $this->skipping > 0 ? null : $this->coerceNumber($value) / 100.0;
         }
         return $value;
     }
@@ -414,13 +431,13 @@ final class FormulaLinter
                 && $tokens[$pos + 1]['type'] === 'OP' && $tokens[$pos + 1]['value'] === '!'
                 && $pos + 2 < count($tokens) && $tokens[$pos + 2]['type'] === 'IDENT') {
                 $sheetName = $this->sheetNames[mb_strtolower($this->cleanSheetName($tok['value']))] ?? null;
-                if ($sheetName === null) {
+                if ($sheetName === null && $this->skipping === 0) {
                     throw new LinterError(self::ERR_REF);
                 }
                 $pos += 2;
                 $startTok = $tokens[$pos]['value'];
                 $pos++;
-                return $this->resolveRefOrRange($startTok, $sheetName, $tokens, $pos, $index, $cache, $stack);
+                return $this->resolveRefOrRange($startTok, $sheetName ?? $tok['value'], $tokens, $pos, $index, $cache, $stack);
             }
 
             if ($tok['type'] === 'SHEET') {
@@ -437,6 +454,9 @@ final class FormulaLinter
                 if (! in_array($name, self::FUNCTIONS, true)) {
                     throw new LinterError(self::ERR_NAME, 'function', $name);
                 }
+                if ($name === 'IF') {
+                    return $this->parseIf($tokens, $pos, $sheet, $index, $cache, $stack);
+                }
                 $pos += 2; // consume IDENT '('
                 $args = [];
                 if (! ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === ')')) {
@@ -450,7 +470,7 @@ final class FormulaLinter
                     }
                 }
                 $this->expectOp($tokens, $pos, ')');
-                return $this->callFunction($name, $args);
+                return $this->skipping > 0 ? null : $this->callFunction($name, $args);
             }
 
             // Boolean literals (Excel uses TRUE / FALSE bareword)
@@ -468,9 +488,78 @@ final class FormulaLinter
         throw LinterError::syntax(sprintf('unexpected %s where a value was expected', $this->describeToken($tok)));
     }
 
+    /**
+     * IF, evaluated lazily as Excel does: `=IF(A2=0,0,1/A2)` with A2 = 0 is 0,
+     * not #DIV/0!. Every argument is parsed, so a syntax error or an unknown
+     * function anywhere in it is still reported, but only the condition and the
+     * branch it selects are evaluated.
+     *
+     * The order of the verdicts is deliberate. A syntax error anywhere wins,
+     * because Excel refuses a formula it cannot parse and computes nothing.
+     * Then fewer than two arguments is #VALUE!. Then an error in the condition
+     * propagates, and neither branch is evaluated.
+     */
+    private function parseIf(array $tokens, int &$pos, string $sheet, array $index, array &$cache, array $stack): mixed
+    {
+        $pos += 2; // consume IF '('
+        $args = [];
+        $take = null;           // the argument the condition selects: 1 or 2
+        $conditionError = null; // an error the condition evaluated to
+        if (! ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === ')')) {
+            while (true) {
+                $i = count($args);
+                $skip = $i > 0 && $i !== $take;
+                if ($skip) {
+                    $this->skipping++;
+                }
+                try {
+                    $args[] = $this->parseExpr($tokens, $pos, $sheet, $index, $cache, $stack);
+                } finally {
+                    if ($skip) {
+                        $this->skipping--;
+                    }
+                }
+                if ($i === 0 && $this->skipping === 0) {
+                    try {
+                        $take = $this->toLogical($args[0]) ? 1 : 2;
+                    } catch (LinterError $e) {
+                        $conditionError = $e;
+                    }
+                }
+                if ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === ',') {
+                    $pos++;
+                    continue;
+                }
+                break;
+            }
+        }
+        $this->expectOp($tokens, $pos, ')');
+
+        if ($this->skipping > 0) {
+            return null;
+        }
+        if (count($args) < 2) {
+            return self::ERR_VALUE;
+        }
+        if ($conditionError !== null) {
+            throw $conditionError;
+        }
+        return $take === 1 ? $args[1] : ($args[2] ?? false);
+    }
+
     /** Resolve a single ref OR a range (when the next token is `:`). */
     private function resolveRefOrRange(string $startRef, string $defaultSheet, array $tokens, int &$pos, array $index, array &$cache, array $stack): mixed
     {
+        if ($this->skipping > 0) {
+            // In an untaken IF branch: consume a range's `:` and end so the
+            // parse carries on, but read nothing. A #REF!, or an error held by
+            // the cell, belongs to a branch Excel never evaluates.
+            if ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === ':'
+                && $pos + 1 < count($tokens) && $tokens[$pos + 1]['type'] === 'IDENT') {
+                $pos += 2;
+            }
+            return null;
+        }
         $cleanStart = $this->cleanRef($startRef);
         if ($cleanStart === null) {
             throw new LinterError(self::ERR_REF);
@@ -684,7 +773,6 @@ final class FormulaLinter
             'COUNTA' => count(array_filter($flat, fn ($v) => $v !== null && $v !== '')),
             'MIN' => $this->minMax($flat, true),
             'MAX' => $this->minMax($flat, false),
-            'IF' => $this->ifFn($args),
             'ROUND' => round($this->coerceNumber($args[0] ?? 0), (int) $this->coerceNumber($args[1] ?? 0)),
             'ABS' => abs($this->coerceNumber($args[0] ?? 0)),
             'LEN' => $this->excelLength($this->coerceString($args[0] ?? '')),
@@ -693,7 +781,8 @@ final class FormulaLinter
             'CONCAT', 'CONCATENATE' => implode('', array_map(fn ($v) => $this->coerceString($v), $flat)),
             'TRUE' => true,
             'FALSE' => false,
-            // Unreachable: parsePrimary checks FUNCTIONS before parsing args.
+            // Unreachable: parsePrimary checks FUNCTIONS before parsing args,
+            // and IF never arrives here, because parseIf evaluates it lazily.
             default => throw new LinterError(self::ERR_NAME, 'function', $name),
         };
     }
@@ -749,14 +838,6 @@ final class FormulaLinter
         }
         $vals = array_map(fn ($v) => $this->maybeNum($v), $nums);
         return $min ? min($vals) : max($vals);
-    }
-
-    private function ifFn(array $args): mixed
-    {
-        if (count($args) < 2) {
-            return self::ERR_VALUE;
-        }
-        return $this->toLogical($args[0]) ? $args[1] : ($args[2] ?? false);
     }
 
     /**

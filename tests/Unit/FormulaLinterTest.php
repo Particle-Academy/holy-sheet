@@ -485,3 +485,50 @@ it('still reports #VALUE! for an IF with fewer than two arguments', function () 
             ->and($issues[0]['error'])->toBe('#VALUE!');
     }
 });
+
+/*
+ * Parity with holy-sheet-js and holy-sheet-py. Each port carries these same
+ * cases with the same literal texts, so a hint or an ordering that drifts in
+ * any one of the three fails there.
+ */
+
+it('writes the #NAME? hints byte for byte as the JS and Python ports do', function () {
+    $tail = '. Excel cannot parse this formula. Check for an unbalanced parenthesis or quote, a missing operator or argument, or a character a formula cannot contain. Text goes in double quotes, and a quote inside text is written twice: "a""b".';
+    $supported = 'Holy Sheet supports: SUM, AVERAGE, COUNT, COUNTA, MIN, MAX, IF, ROUND, ABS, LEN, UPPER, LOWER, CONCAT.';
+    $cases = [
+        ['SUM(1,2', "Syntax error: expected ')', but the formula ends".$tail],
+        ['1 2', 'Syntax error: unexpected number 2 after a complete expression'.$tail],
+        ['1+', 'Syntax error: the formula ends where a value was expected'.$tail],
+        ['1 # 2', "Syntax error: unexpected character '#'".$tail],
+        ['1 é 2', 'Syntax error: unexpected non-ASCII character outside a text literal'.$tail],
+        ['"abc', 'Syntax error: a text literal opens with " and never closes'.$tail],
+        ["'S'+1", "Syntax error: the quoted name 'S' is not followed by ! and a cell reference".$tail],
+        ['SUM(1,,', "Syntax error: unexpected ',' where a value was expected".$tail],
+        ['"a""b" 3', 'Syntax error: unexpected number 3 after a complete expression'.$tail],
+        ['VLOOKUP(1, A2:B3, 2)', 'Unknown function VLOOKUP. '.$supported],
+        ['A1+1', 'This formula depends on A1, whose value is #NAME?. Fix that cell first.'],
+    ];
+    foreach ($cases as [$formula, $hint]) {
+        $issues = lintFormula($formula, ['A1' => ['formula' => 'BOGUSFN(1)']]);
+        $z1 = array_values(array_filter($issues, fn ($i) => $i['address'] === 'Z1'));
+        expect($z1)->toHaveCount(1)
+            ->and($z1[0]['hint'])->toBe($hint);
+    }
+});
+
+it('orders text by code point, which the ports match', function () {
+    // strcmp on UTF-8 is code-point order. JavaScript's < compares UTF-16 code
+    // units, which would put U+1F600 below U+FF5E; the JS port does not.
+    expect(lintClaim('"😀">"～"'))->toBe([]);
+});
+
+it('tokenizes with ASCII character classes, which the ports match', function () {
+    // ctype_space and ctype_alpha are ASCII-only, so a no-break space and "é"
+    // outside a text literal are syntax errors. The ports' Unicode-aware
+    // character tests had to be narrowed to agree.
+    foreach (["1\u{00A0}+1", 'é1+1'] as $formula) {
+        $issues = lintFormula($formula);
+        expect($issues)->toHaveCount(1)
+            ->and($issues[0]['hint'])->toStartWith('Syntax error: unexpected non-ASCII character outside a text literal.');
+    }
+});

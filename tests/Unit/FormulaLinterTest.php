@@ -390,6 +390,22 @@ it('points an inherited #NAME? at the cell it came from', function () {
         ->and(strtolower($z1[0]['hint']))->not->toContain('unknown function');
 });
 
+it('rounds half away from zero on the decimal value, as Excel ROUND does', function () {
+    // A GUARD, not a fix: PHP 8.4's round() already gives Excel's answer on
+    // every case here (checked 2026-10-28). It pins the behaviour so the
+    // fancy-formula delegation, or a "simpler" floor(x*100+0.5)/100, cannot
+    // quietly turn 2.675 into 2.67 (2.675 is 2.67499999... as a double).
+    $cases = [
+        'ROUND(2.675,2)=2.68', 'ROUND(-2.675,2)=-2.68', 'ROUND(1.005,2)=1.01',
+        'ROUND(0.285,2)=0.29', 'ROUND(8.325,2)=8.33', 'ROUND(2.5,0)=3',
+        'ROUND(-2.5,0)=-3', 'ROUND(-0.5,0)=-1', 'ROUND(1250,-2)=1300',
+        'ROUND(-1250,-2)=-1300', 'ROUND(1.45,1)=1.5',
+    ];
+    foreach ($cases as $claim) {
+        expect(lintClaim($claim))->toBe([]);
+    }
+});
+
 it('reports a text literal that never closes', function () {
     // The old tokenizer ran the literal to the end of the formula and passed it.
     $issues = lintFormula('"abc');

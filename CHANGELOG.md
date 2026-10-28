@@ -26,6 +26,9 @@ you assert on the exact set of issues a formula produces.
   spells one of them, in any case: `"false"` used to count as TRUE. Any other
   text, `""` included, is now `#VALUE!` (a new true positive; it used to pass).
   An error in the condition now propagates instead of picking a branch.
+- **LEN counts characters, not bytes.** `=LEN("é")` is 1, not 2. As in Excel,
+  it counts UTF-16 code units, so an emoji outside the Basic Multilingual Plane
+  is 2.
 
 ## [2.11.0] - 2026-10-27
 

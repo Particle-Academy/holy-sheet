@@ -609,7 +609,7 @@ final class FormulaLinter
             'IF' => $this->ifFn($args),
             'ROUND' => round($this->coerceNumber($args[0] ?? 0), (int) $this->coerceNumber($args[1] ?? 0)),
             'ABS' => abs($this->coerceNumber($args[0] ?? 0)),
-            'LEN' => strlen($this->coerceString($args[0] ?? '')),
+            'LEN' => $this->excelLength($this->coerceString($args[0] ?? '')),
             'UPPER' => strtoupper($this->coerceString($args[0] ?? '')),
             'LOWER' => strtolower($this->coerceString($args[0] ?? '')),
             'CONCAT', 'CONCATENATE' => implode('', array_map(fn ($v) => $this->coerceString($v), $flat)),
@@ -617,6 +617,15 @@ final class FormulaLinter
             'FALSE' => false,
             default => self::ERR_NAME,
         };
+    }
+
+    /**
+     * Excel's LEN counts UTF-16 code units: "é" is 1, and a character outside
+     * the Basic Multilingual Plane (most emoji) is 2. Never bytes.
+     */
+    private function excelLength(string $s): int
+    {
+        return intdiv(strlen(mb_convert_encoding($s, 'UTF-16LE', 'UTF-8')), 2);
     }
 
     private function flatten(array $args): array

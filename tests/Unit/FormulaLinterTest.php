@@ -310,6 +310,14 @@ it('propagates an error in the IF condition instead of choosing a branch', funct
         ->and($z1[0]['error'])->toBe('#DIV/0!');
 });
 
+it('counts characters in LEN, not bytes', function () {
+    expect(lintClaim('LEN("é")=1'))->toBe([])
+        ->and(lintClaim('LEN("naïve café")=10'))->toBe([])
+        ->and(lintClaim('LEN(A1)=2', ['A1' => ['value' => '日本']]))->toBe([])
+        // Excel counts UTF-16 code units: a character outside the BMP is 2.
+        ->and(lintClaim('LEN("😀")=2'))->toBe([]);
+});
+
 it('reports a text literal that never closes', function () {
     // The old tokenizer ran the literal to the end of the formula and passed it.
     $issues = lintFormula('"abc');

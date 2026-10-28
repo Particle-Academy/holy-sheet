@@ -271,7 +271,7 @@ final class FormulaLinter
     {
         $left = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
         while ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP'
-            && in_array($tokens[$pos]['value'], ['*', '/', '%', '^'], true)) {
+            && in_array($tokens[$pos]['value'], ['*', '/', '^'], true)) {
             $op = $tokens[$pos]['value'];
             $pos++;
             $right = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
@@ -280,7 +280,6 @@ final class FormulaLinter
             $left = match ($op) {
                 '*' => $a * $b,
                 '/' => $b == 0.0 ? throw new LinterError(self::ERR_DIV0) : $a / $b,
-                '%' => $a / 100.0 * $b,    // Excel `%` is post-fix /100; treating as binary multiply for simplicity
                 '^' => $a ** $b,
             };
         }
@@ -298,7 +297,22 @@ final class FormulaLinter
             $pos++;
             return $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
         }
-        return $this->parsePrimary($tokens, $pos, $sheet, $index, $cache, $stack);
+        return $this->parsePercent($tokens, $pos, $sheet, $index, $cache, $stack);
+    }
+
+    /**
+     * Excel's `%` is a POSTFIX operator that divides by 100: `50%` is 0.5 and
+     * `A1%` is A1/100. It binds tighter than `^`, `*` and `/`. There is no
+     * binary `%`, so `10%2` leaves a stray `2` and is a syntax error.
+     */
+    private function parsePercent(array $tokens, int &$pos, string $sheet, array $index, array &$cache, array $stack): mixed
+    {
+        $value = $this->parsePrimary($tokens, $pos, $sheet, $index, $cache, $stack);
+        while ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === '%') {
+            $pos++;
+            $value = $this->coerceNumber($value) / 100.0;
+        }
+        return $value;
     }
 
     private function parsePrimary(array $tokens, int &$pos, string $sheet, array $index, array &$cache, array $stack): mixed

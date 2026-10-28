@@ -4,6 +4,19 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+`Agent::lint()` now follows Excel's formula semantics in the places below.
+What you will notice: **fewer false `#NAME?` reports** on formulas Excel
+accepts, and **some new true positives** on formulas Excel rejects or errors on
+that the linter used to pass. `lint()`'s signature and the issue shape
+`{sheet, address, formula, error, hint}` are unchanged. Nothing to do unless
+you assert on the exact set of issues a formula produces.
+
+- **`%` is postfix percent.** `=50%` is 0.5 and `=A1%` is A1/100; these used to
+  lint as `#NAME?`. A binary `%` such as `=10%2`, which the linter used to
+  evaluate as `10/100*2`, is now reported, because Excel rejects it.
+
 ## [2.11.0] - 2026-10-27
 
 ### Added

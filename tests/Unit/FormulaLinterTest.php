@@ -219,3 +219,44 @@ it('reports #NAME? for a quoted name that is not a sheet reference', function ()
     expect($issues)->toHaveCount(1)
         ->and($issues[0]['error'])->toBe('#NAME?');
 });
+
+/*
+ * Excel semantics (fancy-formula plan, decision D17).
+ *
+ * The linter only reports errors, so a value is observed through a division:
+ * `1/(<claim>)` lints clean exactly when the claim is TRUE (1/1), and as
+ * #DIV/0! when it is FALSE (1/0). Not IF: this linter evaluates both of IF's
+ * branches eagerly, so `IF(claim, 1, 1/0)` is #DIV/0! either way.
+ * holy-sheet writes for Excel, so Excel decides.
+ */
+
+/** @param array<string,mixed> $cells */
+function lintFormula(string $formula, array $cells = []): array
+{
+    return Agent::lint(['sheets' => [[
+        'name' => 'S',
+        'cells' => $cells + ['Z1' => ['formula' => $formula]],
+    ]]]);
+}
+
+/** @param array<string,mixed> $cells */
+function lintClaim(string $claim, array $cells = []): array
+{
+    return lintFormula("1/({$claim})", $cells);
+}
+
+it('treats % as postfix percent, not a binary operator', function () {
+    expect(lintClaim('50%=0.5'))->toBe([])
+        ->and(lintClaim('A1%=0.5', ['A1' => ['value' => 50]]))->toBe([])
+        ->and(lintClaim('-50%=-0.5'))->toBe([])
+        ->and(lintClaim('200%*3=6'))->toBe([])
+        ->and(lintClaim('(1+1)%=0.02'))->toBe([]);
+});
+
+it('reports a binary use of % as an error, since Excel rejects it', function () {
+    // The old parser read 10%2 as 10/100*2 and passed it.
+    $issues = lintFormula('10%2');
+
+    expect($issues)->toHaveCount(1)
+        ->and($issues[0]['error'])->toBe('#NAME?');
+});

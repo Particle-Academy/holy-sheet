@@ -43,6 +43,12 @@ final class FormulaLinter
     private const ERR_DIV0 = '#DIV/0!';
     private const ERR_CIRC = '#CIRC!';
 
+    /** The functions callFunction() evaluates. Anything else is #NAME?. */
+    private const FUNCTIONS = [
+        'SUM', 'AVERAGE', 'AVG', 'COUNT', 'COUNTA', 'MIN', 'MAX', 'IF', 'ROUND',
+        'ABS', 'LEN', 'UPPER', 'LOWER', 'CONCAT', 'CONCATENATE', 'TRUE', 'FALSE',
+    ];
+
     /**
      * @param  array<string,mixed>  $schema
      * @return list<array{sheet:string,address:string,formula:string,error:string,hint:string}>
@@ -56,10 +62,20 @@ final class FormulaLinter
      */
     private array $sheetNames = [];
 
+    /**
+     * Why a cell's own formula produced #NAME?, keyed `Sheet!A1`: a syntax
+     * error, an unknown function, or a linter fault. A cell with #NAME? and no
+     * entry here inherited it from a cell it references.
+     *
+     * @var array<string,array{cause:string,detail:string}>
+     */
+    private array $nameCauses = [];
+
     public function lint(array $schema): array
     {
         $workbook = (new Normalizer())->normalize($schema);
         $this->sheetNames = [];
+        $this->nameCauses = [];
         foreach ($workbook->sheets as $sheet) {
             $this->sheetNames[mb_strtolower($sheet->name)] = $sheet->name;
         }
@@ -82,7 +98,7 @@ final class FormulaLinter
                         'address' => $address,
                         'formula' => $cell->formula,
                         'error' => $result,
-                        'hint' => $this->hint($result, $cell->formula, $sheet->name, $index, $cache),
+                        'hint' => $this->hint($result, $key, $cell->formula, $sheet->name, $index, $cache),
                     ];
                 }
             }
@@ -117,20 +133,38 @@ final class FormulaLinter
      */
     private function evaluate(string $formula, string $defaultSheet, array $index, array &$cache, array $stack): mixed
     {
+        $key = $stack[count($stack) - 1];
+        unset($this->nameCauses[$key]);
         try {
             $tokens = $this->tokenize($formula);
             $pos = 0;
             $result = $this->parseExpr($tokens, $pos, $defaultSheet, $index, $cache, $stack);
             // If anything follows the parsed expression, the formula was malformed.
             if ($pos < count($tokens)) {
-                return self::ERR_NAME;
+                throw LinterError::syntax(sprintf('unexpected %s after a complete expression', $this->describeToken($tokens[$pos])));
             }
             return $result;
         } catch (LinterError $e) {
+            if ($e->cause !== null) {
+                $this->nameCauses[$key] = ['cause' => $e->cause, 'detail' => $e->detail];
+            }
             return $e->errorCode;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            // A bug in this linter, not a fault in the formula. Still reported,
+            // so it is not silently passed, but the hint says whose fault it is.
+            $this->nameCauses[$key] = ['cause' => 'internal', 'detail' => get_debug_type($e)];
             return self::ERR_NAME;
         }
+    }
+
+    /** @param array{type:string, value:string} $tok */
+    private function describeToken(array $tok): string
+    {
+        return match ($tok['type']) {
+            'STRING' => 'text "'.$tok['value'].'"',
+            'NUMBER' => 'number '.$tok['value'],
+            default => "'".$tok['value']."'",
+        };
     }
 
     // ------------------------------------------------------------------ //
@@ -166,7 +200,7 @@ final class FormulaLinter
                 $value = '';
                 while (true) {
                     if ($i >= $len) {
-                        throw new LinterError(self::ERR_NAME);
+                        throw LinterError::syntax('a text literal opens with " and never closes');
                     }
                     if ($src[$i] === '"') {
                         if ($i + 1 < $len && $src[$i + 1] === '"') {
@@ -191,7 +225,7 @@ final class FormulaLinter
                 $i++;
                 while (true) {
                     if ($i >= $len) {
-                        throw new LinterError(self::ERR_NAME);
+                        throw LinterError::syntax("a quoted sheet name opens with ' and never closes");
                     }
                     if ($src[$i] === "'") {
                         if ($i + 1 < $len && $src[$i + 1] === "'") {
@@ -231,8 +265,12 @@ final class FormulaLinter
                 $i++;
                 continue;
             }
-            // Unknown character — fail soft as #NAME?
-            throw new LinterError(self::ERR_NAME);
+            // Unknown character — fail soft as #NAME?. Name it only when it is
+            // ASCII: a lone byte of a multi-byte character is not valid UTF-8,
+            // and the hint ends up in JSON.
+            throw LinterError::syntax(ord($ch) < 128
+                ? sprintf("unexpected character '%s'", $ch)
+                : 'unexpected non-ASCII character outside a text literal');
         }
         return $tokens;
     }
@@ -346,7 +384,7 @@ final class FormulaLinter
     private function parsePrimary(array $tokens, int &$pos, string $sheet, array $index, array &$cache, array $stack): mixed
     {
         if ($pos >= count($tokens)) {
-            throw new LinterError(self::ERR_NAME);
+            throw LinterError::syntax('the formula ends where a value was expected');
         }
         $tok = $tokens[$pos];
 
@@ -386,13 +424,19 @@ final class FormulaLinter
             }
 
             if ($tok['type'] === 'SHEET') {
-                throw new LinterError(self::ERR_NAME);
+                throw LinterError::syntax(sprintf('the quoted name %s is not followed by ! and a cell reference', $tok['value']));
             }
 
             // Function call: IDENT '('
             if ($pos + 1 < count($tokens)
                 && $tokens[$pos + 1]['type'] === 'OP' && $tokens[$pos + 1]['value'] === '(') {
                 $name = strtoupper($tok['value']);
+                // Excel resolves names before it evaluates anything, so an
+                // unknown function is #NAME? whatever its arguments hold and
+                // whichever IF branch it sits in.
+                if (! in_array($name, self::FUNCTIONS, true)) {
+                    throw new LinterError(self::ERR_NAME, 'function', $name);
+                }
                 $pos += 2; // consume IDENT '('
                 $args = [];
                 if (! ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === ')')) {
@@ -421,7 +465,7 @@ final class FormulaLinter
             return $this->resolveRefOrRange($tok['value'], $sheet, $tokens, $pos, $index, $cache, $stack);
         }
 
-        throw new LinterError(self::ERR_NAME);
+        throw LinterError::syntax(sprintf('unexpected %s where a value was expected', $this->describeToken($tok)));
     }
 
     /** Resolve a single ref OR a range (when the next token is `:`). */
@@ -511,8 +555,11 @@ final class FormulaLinter
 
     private function expectOp(array $tokens, int &$pos, string $op): void
     {
-        if ($pos >= count($tokens) || $tokens[$pos]['type'] !== 'OP' || $tokens[$pos]['value'] !== $op) {
-            throw new LinterError(self::ERR_NAME);
+        if ($pos >= count($tokens)) {
+            throw LinterError::syntax(sprintf("expected '%s', but the formula ends", $op));
+        }
+        if ($tokens[$pos]['type'] !== 'OP' || $tokens[$pos]['value'] !== $op) {
+            throw LinterError::syntax(sprintf("expected '%s', found %s", $op, $this->describeToken($tokens[$pos])));
         }
         $pos++;
     }
@@ -646,7 +693,8 @@ final class FormulaLinter
             'CONCAT', 'CONCATENATE' => implode('', array_map(fn ($v) => $this->coerceString($v), $flat)),
             'TRUE' => true,
             'FALSE' => false,
-            default => self::ERR_NAME,
+            // Unreachable: parsePrimary checks FUNCTIONS before parsing args.
+            default => throw new LinterError(self::ERR_NAME, 'function', $name),
         };
     }
 
@@ -746,12 +794,12 @@ final class FormulaLinter
     // Hint generation                                                     //
     // ------------------------------------------------------------------ //
 
-    private function hint(string $error, string $formula, string $sheet, array $index, array $cache): string
+    private function hint(string $error, string $key, string $formula, string $sheet, array $index, array $cache): string
     {
         return match ($error) {
             self::ERR_VALUE => $this->hintValue($formula, $sheet, $index, $cache),
             self::ERR_REF => $this->hintRef($formula),
-            self::ERR_NAME => 'The formula references an unknown function or has a syntax error. Holy Sheet supports: SUM, AVERAGE, COUNT, COUNTA, MIN, MAX, IF, ROUND, ABS, LEN, UPPER, LOWER, CONCAT.',
+            self::ERR_NAME => $this->hintName($key, $formula, $sheet, $cache),
             self::ERR_DIV0 => 'Division by zero — the divisor evaluated to 0.',
             self::ERR_CIRC => 'Circular reference — the formula directly or transitively depends on its own cell.',
             default => 'Formula evaluation failed.',
@@ -763,6 +811,62 @@ final class FormulaLinter
      * name as written, quotes included.
      */
     private const SHEET_QUALIFIER = "('(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_.]*)!";
+
+    /**
+     * #NAME? has three causes in this formula, plus inheritance, and each
+     * hint says which one it is. A syntax error used to be told it "references
+     * an unknown function", and an agent went hunting for a function that was
+     * fine.
+     *
+     * Why a syntax error keeps the #NAME? label rather than a new one: Excel
+     * has no cell value for a formula it cannot parse (it refuses the entry),
+     * so there is no truer label to borrow; #ERROR! is a Google Sheets value,
+     * and holy-sheet writes for Excel. The approved fancy-formula delegation
+     * (plan section 9) maps FORMULA_SYNTAX to #NAME?, so a new label here would
+     * change twice. And `error` is a closed vocabulary consumers switch on,
+     * shared byte-for-byte with holy-sheet-js and holy-sheet-py. The hint is
+     * where the difference belongs.
+     */
+    private function hintName(string $key, string $formula, string $sheet, array $cache): string
+    {
+        $cause = $this->nameCauses[$key] ?? null;
+
+        return match ($cause['cause'] ?? null) {
+            'syntax' => sprintf(
+                'Syntax error: %s. Excel cannot parse this formula. Check for an unbalanced parenthesis or quote, a missing operator or argument, or a character a formula cannot contain. Text goes in double quotes, and a quote inside text is written twice: "a""b".',
+                $cause['detail'],
+            ),
+            'function' => sprintf(
+                'Unknown function %s. Holy Sheet supports: SUM, AVERAGE, COUNT, COUNTA, MIN, MAX, IF, ROUND, ABS, LEN, UPPER, LOWER, CONCAT.',
+                $cause['detail'],
+            ),
+            'internal' => sprintf(
+                'The linter itself failed on this formula (%s). That is a holy-sheet defect, not evidence that the formula is wrong.',
+                $cause['detail'],
+            ),
+            default => $this->hintInheritedName($formula, $sheet, $cache),
+        };
+    }
+
+    private function hintInheritedName(string $formula, string $sheet, array $cache): string
+    {
+        $sources = [];
+        if (preg_match_all('/(?:'.self::SHEET_QUALIFIER.')?\$?([A-Z]+)\$?(\d+)/i', $formula, $matches, PREG_SET_ORDER) > 0) {
+            foreach ($matches as $m) {
+                $sheetName = $m[1] !== ''
+                    ? ($this->sheetNames[mb_strtolower($this->cleanSheetName($m[1]))] ?? $this->cleanSheetName($m[1]))
+                    : $sheet;
+                $a1 = strtoupper($m[2]).$m[3];
+                if (($cache[$sheetName.'!'.$a1] ?? null) === self::ERR_NAME) {
+                    $sources[] = $m[1] !== '' ? $m[1].'!'.$a1 : $a1;
+                }
+            }
+        }
+
+        return $sources === []
+            ? 'This formula depends on a cell whose value is #NAME?. Fix that cell first.'
+            : sprintf('This formula depends on %s, whose value is #NAME?. Fix that cell first.', implode(', ', array_unique($sources)));
+    }
 
     private function hintRef(string $formula): string
     {
@@ -829,8 +933,22 @@ final class FormulaLinter
 /** Internal exception for short-circuit error returns from deep in the parser. */
 final class LinterError extends \RuntimeException
 {
-    public function __construct(public string $errorCode)
-    {
+    /**
+     * @param  string|null  $cause  Why a #NAME? arose in THIS formula: 'syntax'
+     *   or 'function'. Null for an error that was computed, or inherited from
+     *   another cell.
+     * @param  string  $detail  The syntax fault, or the unknown function's name.
+     */
+    public function __construct(
+        public string $errorCode,
+        public ?string $cause = null,
+        public string $detail = '',
+    ) {
         parent::__construct($errorCode);
+    }
+
+    public static function syntax(string $detail): self
+    {
+        return new self('#NAME?', 'syntax', $detail);
     }
 }

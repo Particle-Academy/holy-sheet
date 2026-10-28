@@ -35,6 +35,18 @@ you assert on the exact set of issues a formula produces.
   (`="a"="A"` is TRUE), logicals sort above text, and a blank cell equals 0,
   `""` and FALSE. An error on either side now propagates instead of being
   compared as text.
+- **A `#NAME?` hint says which kind it is.** The label is still `#NAME?`, but
+  every cause used to get one hint, "references an unknown function or has a
+  syntax error". A malformed formula now gets `Syntax error: <what and
+  where>...` and never mentions an unknown function; an unknown function gets
+  `Unknown function VLOOKUP. ...`; a `#NAME?` inherited from another cell names
+  that cell; and an exception inside the linter itself says it is a linter
+  defect. The label stays `#NAME?` because Excel has no cell value for a formula
+  it cannot parse, and the planned fancy-formula delegation maps syntax errors
+  to `#NAME?` too. Match on the hint's prefix if you need to tell them apart.
+- **An unknown function is `#NAME?` wherever it sits.** `=IF(FALSE, FOO(1), 1)`
+  used to pass, because the error was a value that IF discarded. Excel resolves
+  names first, so it is `#NAME?` there and now here (a new true positive).
 
 ## [2.11.0] - 2026-10-27
 

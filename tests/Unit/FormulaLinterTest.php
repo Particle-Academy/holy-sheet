@@ -347,6 +347,49 @@ it('propagates an error through a comparison', function () {
         ->and($z1[0]['error'])->toBe('#DIV/0!');
 });
 
+it('says a malformed formula is a syntax error, never an unknown function', function () {
+    // #NAME? stays the label (see FormulaLinter::hintName). The hint used to be
+    // one sentence for every cause, "references an unknown function or has a
+    // syntax error", which sent an agent hunting for a function that was fine.
+    $malformed = ['SUM(1,2', '(1+2', '1 2', '1+', '1 # 2', '10%2', '"abc', "'S'+1", 'SUM(1,,'];
+    foreach ($malformed as $formula) {
+        $issues = lintFormula($formula);
+        expect($issues)->toHaveCount(1)
+            ->and($issues[0]['error'])->toBe('#NAME?')
+            ->and($issues[0]['hint'])->toStartWith('Syntax error: ')
+            ->and(strtolower($issues[0]['hint']))->not->toContain('unknown function');
+    }
+});
+
+it('names the unknown function in its hint', function () {
+    $issues = lintFormula('VLOOKUP(1, A1:B2, 2)');
+
+    expect($issues)->toHaveCount(1)
+        ->and($issues[0]['error'])->toBe('#NAME?')
+        ->and($issues[0]['hint'])->toStartWith('Unknown function VLOOKUP.')
+        ->and($issues[0]['hint'])->toContain('SUM, AVERAGE');
+});
+
+it('reports an unknown function even in an IF branch that is not taken', function () {
+    // Excel resolves names before it evaluates, so this is #NAME? in Excel.
+    // The old linter returned #NAME? as a VALUE, and IF discarded it.
+    $issues = lintFormula('IF(FALSE, BOGUSFN(1), 1)');
+
+    expect($issues)->toHaveCount(1)
+        ->and($issues[0]['error'])->toBe('#NAME?')
+        ->and($issues[0]['hint'])->toStartWith('Unknown function BOGUSFN.');
+});
+
+it('points an inherited #NAME? at the cell it came from', function () {
+    $issues = lintFormula('A1+1', ['A1' => ['formula' => 'BOGUSFN(1)']]);
+    $z1 = array_values(array_filter($issues, fn ($i) => $i['address'] === 'Z1'));
+
+    expect($z1)->toHaveCount(1)
+        ->and($z1[0]['error'])->toBe('#NAME?')
+        ->and($z1[0]['hint'])->toContain('A1')
+        ->and(strtolower($z1[0]['hint']))->not->toContain('unknown function');
+});
+
 it('reports a text literal that never closes', function () {
     // The old tokenizer ran the literal to the end of the formula and passed it.
     $issues = lintFormula('"abc');

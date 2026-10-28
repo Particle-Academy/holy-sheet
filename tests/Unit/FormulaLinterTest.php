@@ -281,6 +281,35 @@ it('reads a doubled quote inside a text literal as one quote', function () {
         ->and(lintClaim('LEN("")=0'))->toBe([]);
 });
 
+it('reads TRUE and FALSE text as logicals in IF, in any case, as Excel does', function () {
+    // The text "FALSE" WAS already falsy; that part matched Excel. What did not
+    // was every other spelling: "false" counted as TRUE.
+    expect(lintClaim('IF("FALSE",1,2)=2'))->toBe([])
+        ->and(lintClaim('IF("false",1,2)=2'))->toBe([])
+        ->and(lintClaim('IF("True",1,2)=1'))->toBe([])
+        ->and(lintClaim('IF(A1,1,2)=2', ['A1' => ['value' => 'FALSE']]))->toBe([])
+        // An empty cell is FALSE, a non-zero number TRUE.
+        ->and(lintClaim('IF(A1,1,2)=2'))->toBe([])
+        ->and(lintClaim('IF(-3,1,2)=1'))->toBe([]);
+});
+
+it('reports #VALUE! when IF is given text that is not TRUE or FALSE', function () {
+    // The old linter called any other text TRUE and "" FALSE. Excel errors.
+    foreach (['IF("abc",1,2)', 'IF("",1,2)', 'IF(A1,1,2)'] as $formula) {
+        $issues = lintFormula($formula, ['A1' => ['value' => 'yes']]);
+        expect($issues)->toHaveCount(1)
+            ->and($issues[0]['error'])->toBe('#VALUE!');
+    }
+});
+
+it('propagates an error in the IF condition instead of choosing a branch', function () {
+    $issues = lintFormula('IF(A1,1,2)', ['A1' => ['formula' => '1/0']]);
+    $z1 = array_values(array_filter($issues, fn ($i) => $i['address'] === 'Z1'));
+
+    expect($z1)->toHaveCount(1)
+        ->and($z1[0]['error'])->toBe('#DIV/0!');
+});
+
 it('reports a text literal that never closes', function () {
     // The old tokenizer ran the literal to the end of the formula and passed it.
     $issues = lintFormula('"abc');

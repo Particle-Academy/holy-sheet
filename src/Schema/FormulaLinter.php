@@ -668,9 +668,38 @@ final class FormulaLinter
         if (count($args) < 2) {
             return self::ERR_VALUE;
         }
-        $cond = $args[0];
-        $truthy = is_bool($cond) ? $cond : ($cond !== null && $cond !== 0 && $cond !== 0.0 && $cond !== '' && $cond !== 'FALSE');
-        return $truthy ? $args[1] : ($args[2] ?? false);
+        return $this->toLogical($args[0]) ? $args[1] : ($args[2] ?? false);
+    }
+
+    /**
+     * Excel's reading of an IF condition: an error propagates, a blank is
+     * FALSE, a number is TRUE unless it is 0, and text is TRUE or FALSE only
+     * when it spells one of them (in any case). Any other text, "" included,
+     * is #VALUE!.
+     */
+    private function toLogical(mixed $v): bool
+    {
+        if ($this->isError($v)) {
+            throw new LinterError($v);
+        }
+        if (is_bool($v)) {
+            return $v;
+        }
+        if ($v === null) {
+            return false;
+        }
+        if (is_int($v) || is_float($v)) {
+            return $v != 0;
+        }
+        if (is_string($v)) {
+            return match (strtoupper($v)) {
+                'TRUE' => true,
+                'FALSE' => false,
+                default => throw new LinterError(self::ERR_VALUE),
+            };
+        }
+        // A range. Implicit intersection is out of scope; unchanged from before.
+        return true;
     }
 
     // ------------------------------------------------------------------ //

@@ -22,6 +22,10 @@ you assert on the exact set of issues a formula produces.
 - **A doubled quote inside text is one quote.** `="a""b"` is the three
   characters `a"b`; it used to lint as `#NAME?`. A text literal that never
   closes (`="abc`) is now reported instead of passing.
+- **IF reads its condition as Excel does.** Text is TRUE or FALSE only when it
+  spells one of them, in any case: `"false"` used to count as TRUE. Any other
+  text, `""` included, is now `#VALUE!` (a new true positive; it used to pass).
+  An error in the condition now propagates instead of picking a branch.
 
 ## [2.11.0] - 2026-10-27
 

@@ -584,15 +584,46 @@ final class FormulaLinter
         };
     }
 
+    /**
+     * Excel's comparison. An error on either side propagates. Otherwise the
+     * types rank number < text < logical, so ="5">9 is TRUE: numeric TEXT is
+     * text, never a number. Text compares without regard to case. A blank
+     * takes the other side's type (0, "" or FALSE); two blanks are equal.
+     */
     private function cmpVal(mixed $a, mixed $b): int
     {
-        // Both numeric? compare as numbers
-        $an = is_int($a) || is_float($a) || (is_string($a) && is_numeric($a));
-        $bn = is_int($b) || is_float($b) || (is_string($b) && is_numeric($b));
-        if ($an && $bn) {
-            return (float) $a <=> (float) $b;
+        if ($this->isError($a)) {
+            throw new LinterError($a);
         }
-        return (string) $a <=> (string) $b;
+        if ($this->isError($b)) {
+            throw new LinterError($b);
+        }
+        if (is_array($a) || is_array($b)) {
+            // A range. Implicit intersection is out of scope; unchanged from before.
+            return (string) $a <=> (string) $b;
+        }
+        $a ??= $this->blankLike($b);
+        $b ??= $this->blankLike($a);
+        $rank = fn (mixed $v): int => is_bool($v) ? 2 : (is_string($v) ? 1 : 0);
+        if ($rank($a) !== $rank($b)) {
+            return $rank($a) <=> $rank($b);
+        }
+        if (is_string($a)) {
+            // strcmp, not <=>: PHP's <=> compares two numeric strings as
+            // numbers, which is the very defect this replaces.
+            return strcmp(mb_strtolower($a), mb_strtolower((string) $b)) <=> 0;
+        }
+        return $a <=> $b;
+    }
+
+    /** What a blank cell reads as when compared with $other. */
+    private function blankLike(mixed $other): mixed
+    {
+        return match (true) {
+            is_bool($other) => false,
+            is_string($other) => '',
+            default => 0.0,
+        };
     }
 
     /** @param list<mixed> $args */

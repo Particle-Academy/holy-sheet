@@ -318,6 +318,35 @@ it('counts characters in LEN, not bytes', function () {
         ->and(lintClaim('LEN("😀")=2'))->toBe([]);
 });
 
+it('compares numeric text as text, which Excel sorts above every number', function () {
+    // ="10">9 is TRUE in Excel, but so is 10>9, so it cannot tell the two
+    // readings apart. "5">9 can.
+    expect(lintClaim('"5">9'))->toBe([])
+        ->and(lintClaim('"10">9'))->toBe([])
+        ->and(lintClaim('"10"<>10'))->toBe([])
+        ->and(lintClaim('"2">"10"'))->toBe([])
+        ->and(lintClaim('A1>99', ['A1' => ['value' => '10']]))->toBe([]);
+});
+
+it('compares the rest as Excel does: text ignores case, logicals sort last, blanks match', function () {
+    expect(lintClaim('"a"="A"'))->toBe([])
+        ->and(lintClaim('"abc"<"ABD"'))->toBe([])
+        ->and(lintClaim('TRUE>1'))->toBe([])
+        ->and(lintClaim('TRUE>"zzz"'))->toBe([])
+        ->and(lintClaim('FALSE<TRUE'))->toBe([])
+        ->and(lintClaim('A1=0'))->toBe([])
+        ->and(lintClaim('A1=""'))->toBe([])
+        ->and(lintClaim('A1=FALSE'))->toBe([]);
+});
+
+it('propagates an error through a comparison', function () {
+    $issues = lintFormula('A1>0', ['A1' => ['formula' => '1/0']]);
+    $z1 = array_values(array_filter($issues, fn ($i) => $i['address'] === 'Z1'));
+
+    expect($z1)->toHaveCount(1)
+        ->and($z1[0]['error'])->toBe('#DIV/0!');
+});
+
 it('reports a text literal that never closes', function () {
     // The old tokenizer ran the literal to the end of the formula and passed it.
     $issues = lintFormula('"abc');

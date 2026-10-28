@@ -29,6 +29,12 @@ you assert on the exact set of issues a formula produces.
 - **LEN counts characters, not bytes.** `=LEN("é")` is 1, not 2. As in Excel,
   it counts UTF-16 code units, so an emoji outside the Basic Multilingual Plane
   is 2.
+- **Comparisons follow Excel's type order.** Numeric text is text, and Excel
+  sorts text above every number: `="5">9` is TRUE and `="10"=10` is FALSE (both
+  used to compare as numbers). Text compares without regard to case
+  (`="a"="A"` is TRUE), logicals sort above text, and a blank cell equals 0,
+  `""` and FALSE. An error on either side now propagates instead of being
+  compared as text.
 
 ## [2.11.0] - 2026-10-27
 

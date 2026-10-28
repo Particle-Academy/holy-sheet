@@ -269,19 +269,34 @@ final class FormulaLinter
 
     private function parseTerm(array $tokens, int &$pos, string $sheet, array $index, array &$cache, array $stack): mixed
     {
-        $left = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
+        $left = $this->parsePower($tokens, $pos, $sheet, $index, $cache, $stack);
         while ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP'
-            && in_array($tokens[$pos]['value'], ['*', '/', '^'], true)) {
+            && in_array($tokens[$pos]['value'], ['*', '/'], true)) {
             $op = $tokens[$pos]['value'];
             $pos++;
-            $right = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
+            $right = $this->parsePower($tokens, $pos, $sheet, $index, $cache, $stack);
             $a = $this->coerceNumber($left);
             $b = $this->coerceNumber($right);
             $left = match ($op) {
                 '*' => $a * $b,
                 '/' => $b == 0.0 ? throw new LinterError(self::ERR_DIV0) : $a / $b,
-                '^' => $a ** $b,
             };
+        }
+        return $left;
+    }
+
+    /**
+     * `^` binds tighter than `*` and `/` (=2*3^2 is 18) and, as in Excel, is
+     * left-associative (=2^3^2 is 64). Negation binds tighter than `^`, so
+     * =-2^2 is 4: Excel's order, not mathematics'.
+     */
+    private function parsePower(array $tokens, int &$pos, string $sheet, array $index, array &$cache, array $stack): mixed
+    {
+        $left = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
+        while ($pos < count($tokens) && $tokens[$pos]['type'] === 'OP' && $tokens[$pos]['value'] === '^') {
+            $pos++;
+            $right = $this->parseUnary($tokens, $pos, $sheet, $index, $cache, $stack);
+            $left = $this->coerceNumber($left) ** $this->coerceNumber($right);
         }
         return $left;
     }

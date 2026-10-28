@@ -260,3 +260,15 @@ it('reports a binary use of % as an error, since Excel rejects it', function () 
     expect($issues)->toHaveCount(1)
         ->and($issues[0]['error'])->toBe('#NAME?');
 });
+
+it('binds ^ tighter than * and /', function () {
+    expect(lintClaim('2*3^2=18'))->toBe([])
+        ->and(lintClaim('10/2^2=2.5'))->toBe([])
+        ->and(lintClaim('2^3*2=16'))->toBe([])
+        // Excel's ^ is left-associative, and negation binds tighter than ^.
+        ->and(lintClaim('2^3^2=64'))->toBe([])
+        ->and(lintClaim('-2^2=4'))->toBe([])
+        ->and(lintClaim('2^-1=0.5'))->toBe([])
+        // Percent binds tighter still: (50%)^2.
+        ->and(lintClaim('50%^2=0.25'))->toBe([]);
+});

@@ -16,6 +16,9 @@ you assert on the exact set of issues a formula produces.
 - **`%` is postfix percent.** `=50%` is 0.5 and `=A1%` is A1/100; these used to
   lint as `#NAME?`. A binary `%` such as `=10%2`, which the linter used to
   evaluate as `10/100*2`, is now reported, because Excel rejects it.
+- **`^` binds tighter than `*` and `/`.** `=2*3^2` is 18, not 36. It stays
+  left-associative (`=2^3^2` is 64) and below negation (`=-2^2` is 4), as in
+  Excel.
 
 ## [2.11.0] - 2026-10-27
 

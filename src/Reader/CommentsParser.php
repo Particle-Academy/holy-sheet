@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\PartXml;
 use HolySheet\Workbook\CellComment;
 use SimpleXMLElement;
 
@@ -15,7 +16,7 @@ final class CommentsParser
     /** @return array<string,CellComment> */
     public static function parse(string $commentsXml): array
     {
-        $xml = @simplexml_load_string($commentsXml);
+        $xml = PartXml::simple($commentsXml);
         if ($xml === false) return [];
 
         $authors = [];

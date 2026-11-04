@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\PartXml;
 use HolySheet\Reader\Format\DateInverter;
 use HolySheet\Workbook\Cell;
 use HolySheet\Workbook\CellComment;
@@ -60,7 +61,7 @@ final class XlsxReader
         $workbookRelsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
         $workbookRels = is_string($workbookRelsXml) ? RelsParser::parse($workbookRelsXml) : [];
 
-        $sheetsXml = @simplexml_load_string($workbookXml);
+        $sheetsXml = PartXml::simple($workbookXml);
         if ($sheetsXml === false) {
             $zip->close();
             throw new RuntimeException("[holy-sheet] failed to parse xl/workbook.xml in {$path}");
@@ -115,7 +116,7 @@ final class XlsxReader
         if ($coreXml === false) return [];
 
         // SimpleXML strips namespaces awkwardly; use children() with namespace URI for safety.
-        $core = @simplexml_load_string($coreXml);
+        $core = PartXml::simple($coreXml);
         if ($core === false) return [];
 
         $meta = [];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\PartXml;
 use SimpleXMLElement;
 
 /**
@@ -20,7 +21,7 @@ final class SharedStringsParser
     /** @return list<string> */
     public static function parse(string $xml): array
     {
-        $doc = @simplexml_load_string($xml);
+        $doc = PartXml::simple($xml);
         if ($doc === false) {
             return [];
         }

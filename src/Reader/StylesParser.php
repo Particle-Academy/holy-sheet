@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\PartXml;
 use HolySheet\Reader\Format\NumFmtParser;
 use HolySheet\Workbook\CellFormat;
 use SimpleXMLElement;
@@ -27,7 +28,7 @@ final class StylesParser
      */
     public static function parse(string $stylesXml): array
     {
-        $xml = @simplexml_load_string($stylesXml);
+        $xml = PartXml::simple($stylesXml);
         if ($xml === false) return [];
 
         $numFmts = self::parseNumFmts($xml);

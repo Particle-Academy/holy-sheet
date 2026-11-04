@@ -2,6 +2,21 @@
 
 All notable changes to `particle-academy/holy-sheet` will be documented in this file.
 
+## [1.3.1] — 2026-11-04
+
+A security patch on the 0.4 kit line. It carries this fix and nothing else.
+
+### Security
+- **The reader now refuses a `DOCTYPE` in every XML part of an xlsx.** The parts
+  were parsed with no such check, so a crafted file could change the values,
+  names and text the reader returned. Every part now goes through one check.
+  **What to do:** upgrade if you read files you did not write. No code changes.
+  Real spreadsheets carry no `DOCTYPE`, so they read exactly as before. A part
+  with one is treated as if it were malformed: a refused `xl/workbook.xml` still
+  throws `RuntimeException`, and any other part is read as absent, the handling
+  each has always had for a part it cannot parse. So a refused worksheet gives an
+  empty sheet with its name, and refused shared strings give blank string cells.
+
 ## [1.3.0] — 2026-06-07
 
 The "agent kit that happens to write xlsx" release. One bug fix and two DX features that every Laravel/AI integration on Holy Sheet was re-implementing by hand.

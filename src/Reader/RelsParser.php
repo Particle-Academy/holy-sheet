@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\PartXml;
 use SimpleXMLElement;
 
 /**
@@ -22,7 +23,7 @@ final class RelsParser
      */
     public static function parse(string $relsXml): array
     {
-        $xml = @simplexml_load_string($relsXml);
+        $xml = PartXml::simple($relsXml);
         if ($xml === false) return [];
 
         $rels = [];

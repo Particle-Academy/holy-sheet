@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.11.4] - 2026-11-08
+
 ### Security
 
 - **The reader now refuses a `DOCTYPE` in every XML part of an xlsx or ods.**

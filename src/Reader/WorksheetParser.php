@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\PartXml;
 use HolySheet\Workbook\Cell;
 use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\CellComment;
@@ -30,7 +31,7 @@ final class WorksheetParser
      */
     public static function parse(string $worksheetXml, string $name, array $stylesIndex, array $comments = [], array $sharedStrings = []): Sheet
     {
-        $xml = @simplexml_load_string($worksheetXml);
+        $xml = PartXml::simple($worksheetXml);
         if ($xml === false) {
             return new Sheet(name: $name);
         }

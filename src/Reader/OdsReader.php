@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace HolySheet\Reader;
 
 use HolySheet\Archive\OfficeTemplate;
+use HolySheet\Archive\PartXml;
 use HolySheet\Archive\SourceArchive;
 use HolySheet\Reader\Ods\Ns;
 use HolySheet\Reader\Ods\OdsFormula;
@@ -85,11 +86,11 @@ final class OdsReader
         if ($content === null) {
             throw new RuntimeException("[holy-sheet] missing content.xml in {$path}");
         }
-        $contentXml = @simplexml_load_string($content);
+        $contentXml = PartXml::simple($content);
         if ($contentXml === false) {
             throw new RuntimeException("[holy-sheet] failed to parse content.xml in {$path}");
         }
-        $stylesXml = is_string($styles) ? @simplexml_load_string($styles) : false;
+        $stylesXml = is_string($styles) ? PartXml::simple($styles) : false;
 
         $styleIndex = new OdsStyles($contentXml, $stylesXml === false ? null : $stylesXml);
 
@@ -490,7 +491,7 @@ final class OdsReader
     /** @return array<string,string> */
     private static function readMeta(string $xml): array
     {
-        $doc = @simplexml_load_string($xml);
+        $doc = PartXml::simple($xml);
         if ($doc === false) return [];
         $meta = OdsStyles::child($doc, Ns::OFFICE, 'meta');
         if ($meta === null) return [];

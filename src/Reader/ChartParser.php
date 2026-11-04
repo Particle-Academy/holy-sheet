@@ -6,6 +6,7 @@ namespace HolySheet\Reader;
 
 use DOMDocument;
 use DOMElement;
+use HolySheet\Archive\PartXml;
 use HolySheet\Workbook\ChartRange;
 
 /**
@@ -138,16 +139,7 @@ final class ChartParser
 
     private static function load(string $xml): ?DOMDocument
     {
-        if (stripos($xml, '<!DOCTYPE') !== false) {
-            return null;
-        }
-        $dom = new DOMDocument();
-        $prev = libxml_use_internal_errors(true);
-        $ok = $dom->loadXML($xml, LIBXML_NONET);
-        libxml_clear_errors();
-        libxml_use_internal_errors($prev);
-
-        return $ok ? $dom : null;
+        return PartXml::dom($xml);
     }
 
     /** @return array{0:int,1:int}|null */

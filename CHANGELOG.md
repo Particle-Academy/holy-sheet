@@ -4,6 +4,25 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Security
+
+- **The reader now refuses a `DOCTYPE` in every XML part of an xlsx or ods.**
+  Most parts were parsed with no such check, so a crafted file could define its
+  own entities and have them expanded into the values, names and text the reader
+  returned. The two places that already refused one, the chart parser and
+  template classification, now use the same check, because the chart parser's
+  own check did not hold in every case. No file contents were reachable this way
+  and no external file was loaded; the effect was on what the reader returned
+  and on a limited amount of extra work.
+  **What to do:** upgrade if you read files you did not write. No code changes.
+  Real spreadsheets carry no `DOCTYPE`, so they read exactly as before. A part
+  with one is treated as if it were malformed: a refused `xl/workbook.xml` or ods
+  `content.xml` still throws `RuntimeException`, and any other part is read as
+  absent, the handling each has always had for a part it cannot parse. So a
+  refused worksheet gives an empty sheet with its name, and refused shared
+  strings give blank string cells. Text that only looks like a `DOCTYPE`, such as
+  a chart title in CDATA holding an HTML page, is no longer refused.
+
 ## [2.11.3] - 2026-10-28
 
 ### Fixed

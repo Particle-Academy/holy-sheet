@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace HolySheet\Reader;
 
 use HolySheet\Archive\OfficeTemplate;
+use HolySheet\Archive\PartXml;
 use HolySheet\Archive\SourceArchive;
 use HolySheet\Workbook\Workbook;
 use RuntimeException;
@@ -56,7 +57,7 @@ final class XlsxReader
         $workbookRelsXml = $zip->read('xl/_rels/workbook.xml.rels');
         $workbookRels = is_string($workbookRelsXml) ? RelsParser::parse($workbookRelsXml) : [];
 
-        $sheetsXml = @simplexml_load_string($workbookXml);
+        $sheetsXml = PartXml::simple($workbookXml);
         if ($sheetsXml === false) {
             throw new RuntimeException("[holy-sheet] failed to parse xl/workbook.xml in {$path}");
         }
@@ -176,7 +177,7 @@ final class XlsxReader
     /** @return array{name:string,ref:string,headerRowCount:int}|null */
     private static function parseTable(string $xml): ?array
     {
-        $t = @simplexml_load_string($xml);
+        $t = PartXml::simple($xml);
         if ($t === false) {
             return null;
         }
@@ -203,7 +204,7 @@ final class XlsxReader
         if ($coreXml === null) return [];
 
         // SimpleXML strips namespaces awkwardly; use children() with namespace URI for safety.
-        $core = @simplexml_load_string($coreXml);
+        $core = PartXml::simple($coreXml);
         if ($core === false) return [];
 
         $meta = [];

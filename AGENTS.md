@@ -98,9 +98,17 @@ parity fixtures.
 writer goes through `ZipArchive` (DEFLATE, real mtimes). Parity is defined on
 the PARTS, never the zip.
 
-**A `DOCTYPE` is refused before parsing** in the chart parser and in
-`OfficeTemplate`, which read untrusted XML. An xlsx never legitimately carries
-one, and an internal DTD subset is the entry point for entity expansion.
+**Every XML part is parsed through `Archive\PartXml`, which refuses a `DOCTYPE`.**
+A spreadsheet part never legitimately carries one, and an internal DTD subset is
+the entry point for entity expansion. A refusal looks like malformed XML, so each
+caller keeps its own handling of a part it cannot read. A test fails if `src/`
+parses XML anywhere else.
+
+Don't replace the check with a search of the bytes for `<!DOCTYPE`. That search
+does not see every way a part can be encoded, and it refuses a real cell whose
+CDATA holds an HTML page. `prologDeclaresDoctype()` reads only the prolog, and the
+parsed document's own `doctype` is what decides. `DoctypeRefusalTest` and
+`PartXmlTest` hold the cases.
 
 ## The formula linter (`Schema\FormulaLinter`)
 

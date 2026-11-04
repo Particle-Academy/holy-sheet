@@ -7,6 +7,7 @@ namespace HolySheet\Archive;
 use DOMDocument;
 use DOMElement;
 use HolySheet\Exceptions\OfficeTemplateRefused;
+use HolySheet\Exceptions\UnsupportedFormatException;
 use LogicException;
 
 /**
@@ -89,11 +90,18 @@ final class OfficeTemplate
      * exactly as before this class existed: only templates are new.
      *
      * @throws OfficeTemplateRefused `macro_enabled` or `family_mismatch`
+     * @throws UnsupportedFormatException a declaration that carries a DOCTYPE
      */
-    public static function kind(SourceArchive $zip): string
+    public static function kind(SourceArchive $zip, string $path = '(bytes)'): string
     {
         $types = $zip->read('[Content_Types].xml');
         if ($types !== null) {
+            // Reading this as merely unparsable would make the package a plain
+            // document, and every declaration in it would go unchecked.
+            if (PartXml::declaresDoctype($types)) {
+                throw UnsupportedFormatException::refusedDeclaration($path);
+            }
+
             return self::ooxmlKind($zip, $types);
         }
         $mimetype = $zip->read('mimetype');

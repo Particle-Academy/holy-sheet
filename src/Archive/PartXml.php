@@ -53,13 +53,34 @@ final class PartXml
         if ($xml === null || $xml === '' || self::prologDeclaresDoctype($xml)) {
             return null;
         }
+        $dom = self::parsed($xml);
+
+        return $dom !== null && $dom->doctype === null ? $dom : null;
+    }
+
+    /**
+     * Whether a part carries a DOCTYPE, for the one caller that must tell that
+     * from malformed: a package's own declaration, where the difference decides
+     * whether the package is read at all.
+     */
+    public static function declaresDoctype(string $xml): bool
+    {
+        if ($xml === '') {
+            return false;
+        }
+
+        return self::prologDeclaresDoctype($xml) || self::parsed($xml)?->doctype !== null;
+    }
+
+    private static function parsed(string $xml): ?DOMDocument
+    {
         $dom = new DOMDocument();
         $prev = libxml_use_internal_errors(true);
         $loaded = $dom->loadXML($xml, LIBXML_NONET);
         libxml_clear_errors();
         libxml_use_internal_errors($prev);
 
-        return $loaded && $dom->doctype === null ? $dom : null;
+        return $loaded ? $dom : null;
     }
 
     /**

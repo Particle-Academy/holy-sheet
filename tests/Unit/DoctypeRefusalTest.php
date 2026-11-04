@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use HolySheet\Agent;
+use HolySheet\Exceptions\OfficeTemplateRefused;
+use HolySheet\Exceptions\UnsupportedFormatException;
 
 /**
  * Every XML part of an uploaded file is read through one gate, which refuses a
@@ -290,6 +292,88 @@ describe('ods', function () {
 
         expect(dtRead($parts))->not->toContain(DT_ENTITY);
     })->with(array_keys(dtEncodings()));
+});
+
+describe('the package declaration', function () {
+    /** A template that says it carries macros, which is refused outright when its declarations are read. */
+    function dtMacroTemplate(): array
+    {
+        $parts = dtXlsx();
+        $parts['[Content_Types].xml'] = str_replace(
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml',
+            'application/vnd.ms-excel.template.macroEnabled.main+xml',
+            $parts['[Content_Types].xml'],
+        );
+
+        return $parts;
+    }
+
+    it('refuses a macro template for its declaration, so the cases below have something to skip', function () {
+        $parts = dtMacroTemplate();
+        expect($parts['[Content_Types].xml'])->toContain('template.macroEnabled');
+
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(OfficeTemplateRefused::class, 'macro_enabled');
+    });
+
+    it('reads a clean declaration in every encoding', function (string $encoding) {
+        $parts = dtXlsx();
+        $clean = dtRead($parts);
+        $parts['[Content_Types].xml'] = dtEncodings()[$encoding]($parts['[Content_Types].xml']);
+
+        expect(dtRead($parts))->toBe($clean);
+    })->with(array_keys(dtEncodings()));
+
+    it('still refuses the macro template when its declaration carries a DOCTYPE', function (string $encoding) {
+        $parts = dtMacroTemplate();
+        $parts['[Content_Types].xml'] = dtEncodings()[$encoding](dtWithDoctype($parts['[Content_Types].xml']));
+
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(UnsupportedFormatException::class);
+    })->with(array_keys(dtEncodings()));
+
+    it('refuses a plain workbook whose declaration carries a DOCTYPE', function (string $encoding) {
+        $parts = dtXlsx();
+        $parts['[Content_Types].xml'] = dtEncodings()[$encoding](dtWithDoctype($parts['[Content_Types].xml']));
+
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(UnsupportedFormatException::class);
+    })->with(array_keys(dtEncodings()));
+
+    it('refuses one the prolog check cannot read, by asking the parser', function () {
+        $parts = dtXlsx();
+        $parts['[Content_Types].xml'] = '<?xml version="1.0" encoding="UTF-7"?>'
+            .'+ADw-+ACE-DOCTYPE r +AFs-+ADw-+ACE-ENTITY x +ACI-HSINT+ACI-+AD4-+AF0-+AD4-'
+            .'+ADw-Types xmlns+AD0AIg-http://schemas.openxmlformats.org/package/2006/content-types+ACI-/+AD4-';
+        $live = @simplexml_load_string($parts['[Content_Types].xml']);
+        if ($live === false || $live->getName() !== 'Types') {
+            $this->markTestSkipped('this libxml has no UTF-7 decoder, so there is nothing to refuse');
+        }
+
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(UnsupportedFormatException::class);
+    });
+
+    it('reports a refused declaration through every way in', function () {
+        $parts = dtXlsx();
+        $parts['[Content_Types].xml'] = dtWithDoctype($parts['[Content_Types].xml']);
+        $bytes = dtZip($parts);
+
+        expect(Agent::catalog($bytes))->toBe(['ok' => false, 'refused' => ['reason' => 'not_a_workbook']])
+            ->and(fn () => Agent::convertTemplate($bytes))->toThrow(UnsupportedFormatException::class);
+    });
+
+    it('leaves a malformed declaration handled as it always was', function () {
+        $parts = dtXlsx();
+        $clean = dtRead($parts);
+        $parts['[Content_Types].xml'] = '<Types>';
+
+        expect(dtRead($parts))->toBe($clean);
+    });
+
+    it('does not refuse a declaration for text that only looks like a DOCTYPE', function () {
+        $parts = dtXlsx();
+        $clean = dtRead($parts);
+        $parts['[Content_Types].xml'] = str_replace('</Types>', '<!-- <!DOCTYPE x> --></Types>', dtWithDoctype($parts['[Content_Types].xml'], '<!-- <!DOCTYPE x> -->'));
+
+        expect(dtRead($parts))->toBe($clean);
+    });
 });
 
 it('leaves no way to a part except through the gate', function () {

@@ -110,6 +110,11 @@ CDATA holds an HTML page. `prologDeclaresDoctype()` reads only the prolog, and t
 parsed document's own `doctype` is what decides. `DoctypeRefusalTest` and
 `PartXmlTest` hold the cases.
 
+**`[Content_Types].xml` is the exception to "a refusal looks like malformed".**
+Declarations decide which other refusals apply, so a `DOCTYPE` there refuses the
+whole package with `UnsupportedFormatException` rather than reading as a package
+that declares nothing.
+
 ## The formula linter (`Schema\FormulaLinter`)
 
 `Agent::lint()` evaluates every formula and reports cells whose value is an

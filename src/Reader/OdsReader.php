@@ -78,7 +78,7 @@ final class OdsReader
     /** The same read, from an already-opened (and already limit-checked) archive. */
     public function readArchive(SourceArchive $zip, string $path = '(bytes)'): Workbook
     {
-        $sourceKind = OfficeTemplate::kind($zip);
+        $sourceKind = OfficeTemplate::kind($zip, $path);
         $content = $zip->read('content.xml');
         $styles = $zip->read('styles.xml');
         $meta = $zip->read('meta.xml');

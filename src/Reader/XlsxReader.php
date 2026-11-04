@@ -41,7 +41,7 @@ final class XlsxReader
     /** The same read, from an already-opened (and already limit-checked) archive. */
     public function readArchive(SourceArchive $zip, string $path = '(bytes)'): Workbook
     {
-        $sourceKind = OfficeTemplate::kind($zip);
+        $sourceKind = OfficeTemplate::kind($zip, $path);
 
         $stylesXml = $zip->read('xl/styles.xml');
         $stylesIndex = is_string($stylesXml) ? StylesParser::parse($stylesXml) : [];

@@ -34,6 +34,14 @@ final class UnsupportedFormatException extends RuntimeException
         );
     }
 
+    public static function refusedDeclaration(string $path): self
+    {
+        return new self(
+            "[holy-sheet] cannot read {$path}: its [Content_Types].xml carries a DOCTYPE, which no spreadsheet package has",
+            $path,
+        );
+    }
+
     public static function unknownPackage(string $path, ?string $mimetype): self
     {
         $what = $mimetype !== null && $mimetype !== ''

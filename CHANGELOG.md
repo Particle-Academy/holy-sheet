@@ -22,6 +22,13 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
   refused worksheet gives an empty sheet with its name, and refused shared
   strings give blank string cells. Text that only looks like a `DOCTYPE`, such as
   a chart title in CDATA holding an HTML page, is no longer refused.
+- **A package whose `[Content_Types].xml` carries a `DOCTYPE` is now refused.**
+  It was treated as declaring nothing, so the checks that depend on what a
+  package declares did not run on it. Reading or converting one now throws
+  `UnsupportedFormatException`, a `RuntimeException`. `catalog` and `extract`
+  report `not_a_workbook`, and `export` reports `export_refused` with that cause.
+  **What to do:** nothing, unless you catch `OfficeTemplateRefused` alone around
+  a read. Real spreadsheets carry no `DOCTYPE` there, so they read as before.
 
 ## [2.11.3] - 2026-10-28
 

@@ -62,7 +62,12 @@ three pass are in `tests/fixtures/read-options/cases.json`.
     6.1 GB.
   A worksheet or shared-strings part cut off mid-document is counted up to the
   cut, so a truncated part over a limit is now refused; before, it parsed as
-  malformed and read as empty, unseen by any limit.
+  malformed and read as empty, unseen by any limit. A part libxml calls
+  malformed is counted without libxml (`PartXml::scanTags`, a port of the
+  JavaScript package's scanner), because what `XMLReader` delivers before the
+  error depends on the libxml version: measured on a worksheet cut off after
+  three cells, libxml 2.11.9 delivered all three and 2.9.14 (Ubuntu 24.04's)
+  none. So a truncated part counts the same on every libxml and in every port.
   **What to do:** nothing. Reads that succeeded still succeed with the same
   result; the stream replaces the old walk of the parsed tree, and measured
   0 to 5% more time on a full read (5,000,000 cells: 54.0 s against 51.5 s).

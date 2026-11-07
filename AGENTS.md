@@ -124,6 +124,10 @@ matches what SimpleXML property access reads (the first unprefixed `cols` /
 `sheetData`, unprefixed children), and the shared `read-options/cases.json`
 pins the counts in all three ports. Every limit, archive ones included, is set
 through `read()`/`describe()`'s `limits` (and `holy-sheet.limits` in Laravel).
+A part `stream()` reports malformed is recounted with `PartXml::scanTags()`, a
+byte tokenizer ported from holy-sheet-js `scanXml`: XMLReader's view of a
+malformed part changes with libxml (2.9.14 on CI delivered none of a truncated
+part's elements; 2.11.9 delivered all), so never trust its count there.
 
 **`[Content_Types].xml` is checked before anything else is read.** Declarations
 decide which other refusals apply, so a `DOCTYPE` there refuses the whole package

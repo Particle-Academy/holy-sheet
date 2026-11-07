@@ -92,7 +92,15 @@ final class PartXml
      * a limit refuse a part the parser would only call malformed after
      * building most of it.
      *
-     * @param  callable(\XMLReader):void  $visit
+     * `$visit($depth, $prefix, $localName, $attributes)` gets the reader as
+     * `$attributes` (read one with `getAttribute()`); `scanTags()` calls the
+     * same visitor with an array, so one visitor serves both.
+     *
+     * Only a WELL-FORMED part's count can be trusted from here: what XMLReader
+     * delivers before a malformed part's error depends on the libxml version
+     * (see scanTags()), so a caller that gets false recounts with scanTags().
+     *
+     * @param  callable(int, string, string, \XMLReader|array<string,string>):void  $visit
      *
      * @throws UnsupportedFormatException when the part carries a DOCTYPE
      */
@@ -119,7 +127,7 @@ final class PartXml
                 if ($reader->nodeType === \XMLReader::ELEMENT) {
                     $depth = $reader->depth;
                     if ($depth <= $maxDepth) {
-                        $visit($reader);
+                        $visit($depth, $reader->prefix, $reader->localName, $reader);
                     }
                     if ($depth >= $maxDepth && ! $reader->isEmptyElement) {
                         $ok = $reader->next();
@@ -136,6 +144,168 @@ final class PartXml
             libxml_clear_errors();
             libxml_use_internal_errors($prev);
         }
+    }
+
+    /**
+     * The elements of a part libxml calls MALFORMED, found without libxml: a
+     * byte tokenizer that is a line-for-line port of holy-sheet-js `scanXml`,
+     * so a truncated part counts the same in all three ports.
+     *
+     * It exists because what XMLReader delivers before a malformed part's error
+     * depends on the libxml version. Measured on a 220-byte worksheet cut off
+     * after three cells: libxml 2.11.9 delivered all three `<c>` elements,
+     * libxml 2.9.14 (Ubuntu 24.04's, and so CI's) delivered none, because it
+     * pushes the last chunk with "terminate" and returns false before handing
+     * over what that chunk parsed. A limit counted from that refused the part
+     * on one machine and waved it through on another.
+     *
+     * `$visit($depth, $prefix, $localName, $attributes)` for every element of
+     * the first root (depth 0) down to `$maxDepth`; attributes are keyed by
+     * qualified name, values decoded. Comments, CDATA and processing
+     * instructions are stepped over; a `DOCTYPE` before the root refuses, and
+     * any other declaration ends the scan. UTF-16 and UTF-32 parts are
+     * transcoded first; every other encoding a part can declare keeps `<`, `>`,
+     * quotes and names in ASCII, so the bytes are scanned as they are.
+     *
+     * @param  callable(int, string, string, array<string,string>):void  $visit
+     *
+     * @throws UnsupportedFormatException when a DOCTYPE comes before the root
+     */
+    public static function scanTags(string $xml, int $maxDepth, callable $visit): void
+    {
+        $src = self::asciiCompatible($xml);
+        $n = strlen($src);
+        $i = 0;
+        $depth = -1;
+        $seenRoot = false;
+        while ($i < $n) {
+            $lt = strpos($src, '<', $i);
+            if ($lt === false) {
+                return;
+            }
+            $i = $lt;
+            if (substr_compare($src, '<!--', $i, 4) === 0) {
+                $end = strpos($src, '-->', $i);
+                $i = $end === false ? $n : $end + 3;
+
+                continue;
+            }
+            if (substr_compare($src, '<![CDATA[', $i, 9) === 0) {
+                $end = strpos($src, ']]>', $i);
+                $i = $end === false ? $n : $end + 3;
+
+                continue;
+            }
+            if (substr_compare($src, '<?', $i, 2) === 0) {
+                $end = strpos($src, '?>', $i);
+                $i = $end === false ? $n : $end + 2;
+
+                continue;
+            }
+            if (substr_compare($src, '<!', $i, 2) === 0) {
+                if (! $seenRoot && strcasecmp(substr($src, $i, 9), '<!doctype') === 0) {
+                    throw UnsupportedFormatException::refusedPart();
+                }
+
+                return;
+            }
+            if (($src[$i + 1] ?? '') === '/') {
+                $end = strpos($src, '>', $i);
+                if ($depth >= 0) {
+                    $depth--;
+                }
+                // Only the first top-level element is the document, as when parsed.
+                if ($depth < 0 && $seenRoot) {
+                    return;
+                }
+                $i = $end === false ? $n : $end + 1;
+
+                continue;
+            }
+            $end = self::tagEnd($src, $i + 1);
+            $selfClosing = $end > 0 && ($src[$end - 1] ?? '') === '/';
+            $depth++;
+            if ($depth === 0 && $seenRoot) {
+                return;
+            }
+            $seenRoot = true;
+            if ($depth <= $maxDepth) {
+                $inner = substr($src, $i + 1, ($selfClosing ? $end - 1 : $end) - $i - 1);
+                [$qname, $attrs] = self::tag($inner);
+                $colon = strpos($qname, ':');
+                $visit($depth, $colon === false ? '' : substr($qname, 0, $colon), $colon === false ? $qname : substr($qname, $colon + 1), $attrs);
+            }
+            if ($selfClosing) {
+                $depth--;
+                if ($depth < 0) {
+                    return;
+                }
+            }
+            $i = $end + 1;
+        }
+    }
+
+    /** The first `>` outside a quoted attribute value, or the end. */
+    private static function tagEnd(string $src, int $from): int
+    {
+        $n = strlen($src);
+        $quote = null;
+        for ($i = $from; $i < $n; $i++) {
+            $ch = $src[$i];
+            if ($quote !== null) {
+                if ($ch === $quote) {
+                    $quote = null;
+                }
+            } elseif ($ch === '"' || $ch === "'") {
+                $quote = $ch;
+            } elseif ($ch === '>') {
+                return $i;
+            }
+        }
+
+        return $n;
+    }
+
+    /**
+     * A start tag's qualified name and attributes, as holy-sheet-js `parseTag`
+     * reads them.
+     *
+     * @return array{0:string,1:array<string,string>}
+     */
+    private static function tag(string $inner): array
+    {
+        $inner = trim($inner);
+        $nameLength = strcspn($inner, " \t\r\n");
+        $attrs = [];
+        if (preg_match_all('/([^\s=\/]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')/', substr($inner, $nameLength), $m, PREG_SET_ORDER) > 0) {
+            foreach ($m as $a) {
+                $value = ($a[2] ?? '') !== '' ? $a[2] : ($a[3] ?? '');
+                $attrs[$a[1]] = html_entity_decode($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
+            }
+        }
+
+        return [substr($inner, 0, $nameLength), $attrs];
+    }
+
+    /** The part in an encoding whose markup is ASCII: UTF-16 and UTF-32 become UTF-8. */
+    private static function asciiCompatible(string $xml): string
+    {
+        $b = substr($xml, 0, 4);
+        $from = match (true) {
+            str_starts_with($b, "\xFF\xFE\x00\x00"), str_starts_with($b, "\x3C\x00\x00\x00") => 'UTF-32LE',
+            str_starts_with($b, "\x00\x00\xFE\xFF"), str_starts_with($b, "\x00\x00\x00\x3C") => 'UTF-32BE',
+            str_starts_with($b, "\xFF\xFE"), str_starts_with($b, "\x3C\x00") => 'UTF-16LE',
+            str_starts_with($b, "\xFE\xFF"), str_starts_with($b, "\x00\x3C") => 'UTF-16BE',
+            default => null,
+        };
+        if ($from === null) {
+            return $xml;
+        }
+        $bom = match ($from) {
+            'UTF-32LE' => "\xFF\xFE\x00\x00", 'UTF-32BE' => "\x00\x00\xFE\xFF", 'UTF-16LE' => "\xFF\xFE", default => "\xFE\xFF",
+        };
+
+        return (string) mb_convert_encoding(str_starts_with($xml, $bom) ? substr($xml, strlen($bom)) : $xml, 'UTF-8', $from);
     }
 
     /**

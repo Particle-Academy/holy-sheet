@@ -136,10 +136,8 @@ final class ReadLimits
         $seenCols = $seenSheetData = false;
         $in = null;      // 'cols' | 'sheetData' | null: the depth-1 element we are inside
         $inRow = false;
-        PartXml::stream($xml, 3, function (\XMLReader $r) use (&$rows, &$columns, &$cells, &$seenCols, &$seenSheetData, &$in, &$inRow): void {
-            $depth = $r->depth;
-            $mine = $r->prefix === '';
-            $name = $r->localName;
+        $visit = function (int $depth, string $prefix, string $name, \XMLReader|array $attrs) use (&$rows, &$columns, &$cells, &$seenCols, &$seenSheetData, &$in, &$inRow): void {
+            $mine = $prefix === '';
             if ($depth === 1) {
                 $in = null;
                 if ($mine && $name === 'cols' && ! $seenCols) {
@@ -153,9 +151,9 @@ final class ReadLimits
             if ($depth === 2) {
                 $inRow = false;
                 if ($in === 'cols' && $mine && $name === 'col') {
-                    $columns = max($columns, self::number((string) $r->getAttribute('max')));
+                    $columns = max($columns, self::number(self::attribute($attrs, 'max')));
                 } elseif ($in === 'sheetData' && $mine && $name === 'row') {
-                    $rows = max($rows, self::number((string) $r->getAttribute('r')));
+                    $rows = max($rows, self::number(self::attribute($attrs, 'r')));
                     $inRow = true;
                 }
 
@@ -167,10 +165,24 @@ final class ReadLimits
                 if (++$cells + $this->cells > $this->limits['maxCells']) {
                     throw new ReadLimitExceeded('maxCells', $this->limits['maxCells'], $cells + $this->cells);
                 }
-                [$columns, $rows] = $this->cellExtent((string) $r->getAttribute('r'), $columns, $rows);
+                [$columns, $rows] = $this->cellExtent(self::attribute($attrs, 'r'), $columns, $rows);
             }
-        });
+        };
+        if (! PartXml::stream($xml, 3, $visit)) {
+            // Malformed: what XMLReader delivered depends on the libxml version
+            // (PartXml::scanTags says why), so count again without it.
+            $rows = $columns = $cells = 0;
+            $seenCols = $seenSheetData = $inRow = false;
+            $in = null;
+            PartXml::scanTags($xml, 3, $visit);
+        }
         $this->sheet($rows, $columns, $cells);
+    }
+
+    /** @param  \XMLReader|array<string,string>  $attrs */
+    private static function attribute(\XMLReader|array $attrs, string $name): string
+    {
+        return is_array($attrs) ? ($attrs[$name] ?? '') : (string) $attrs->getAttribute($name);
     }
 
     /**
@@ -181,11 +193,16 @@ final class ReadLimits
     public function sharedStringsPart(string $xml): void
     {
         $count = 0;
-        PartXml::stream($xml, 1, function (\XMLReader $r) use (&$count): void {
-            if ($r->depth === 1 && $r->prefix === '' && $r->localName === 'si') {
+        $visit = function (int $depth, string $prefix, string $name) use (&$count): void {
+            if ($depth === 1 && $prefix === '' && $name === 'si') {
                 $count++;
             }
-        });
+        };
+        if (! PartXml::stream($xml, 1, $visit)) {
+            // Malformed: recounted without libxml, as worksheetPart() does.
+            $count = 0;
+            PartXml::scanTags($xml, 1, $visit);
+        }
         $this->sharedStrings($count);
     }
 

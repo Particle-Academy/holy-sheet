@@ -130,11 +130,15 @@ final class StylesParser
         $borders = [];
         if (isset($xml->borders) && $xml->borders->border) {
             foreach ($xml->borders->border as $b) {
-                $rec = ['top' => null, 'right' => null, 'bottom' => null, 'left' => null];
+                $rec = ['top' => null, 'right' => null, 'bottom' => null, 'left' => null, 'styles' => []];
                 foreach (['top', 'right', 'bottom', 'left'] as $side) {
                     if (isset($b->{$side}) && isset($b->{$side}['style']) && (string) $b->{$side}['style'] !== ''
                         && isset($b->{$side}->color) && isset($b->{$side}->color['rgb'])) {
                         $rec[$side] = self::argbToHex((string) $b->{$side}->color['rgb']);
+                        // One of the styles the writer has; any other Excel style
+                        // (hair, mediumDashDot, ...) reads as thin, as it always did.
+                        $style = (string) $b->{$side}['style'];
+                        $rec['styles'][$side] = $style !== 'thin' && in_array($style, CellFormat::BORDER_STYLES, true) ? $style : null;
                     }
                 }
                 $borders[] = $rec;
@@ -160,6 +164,10 @@ final class StylesParser
             borderLeft: $border['left'] ?? null,
             currency: $numFmt['currency'] ?? null,
             formatCode: $formatCode,
+            borderTopStyle: $border['styles']['top'] ?? null,
+            borderRightStyle: $border['styles']['right'] ?? null,
+            borderBottomStyle: $border['styles']['bottom'] ?? null,
+            borderLeftStyle: $border['styles']['left'] ?? null,
         );
     }
 

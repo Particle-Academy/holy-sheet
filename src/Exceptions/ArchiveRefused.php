@@ -7,7 +7,7 @@ namespace HolySheet\Exceptions;
 use RuntimeException;
 
 /** Structured refusal without echoing archive names or document content. */
-final class ArchiveRefused extends RuntimeException
+class ArchiveRefused extends RuntimeException
 {
     public function __construct(public readonly string $reason)
     {

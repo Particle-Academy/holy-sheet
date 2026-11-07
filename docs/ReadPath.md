@@ -67,6 +67,7 @@ The returned schema is **cell-keyed** (not row-list-keyed) so round-tripping sty
 | Bold / italic / font size / color | ✓ |
 | Background fill color | ✓ |
 | All four borders + colors | ✓ |
+| Border styles thin, medium, thick, dashed, dotted, double (2.13+) | ✓ (other Excel styles read as thin) |
 | Text alignment | ✓ |
 | Number / currency / percent / date / datetime formats | ✓ (Holy-Sheet-authored) and ✓ (Excel built-in numFmtIds 0–49) |
 | Comments (text + author) | ✓ |

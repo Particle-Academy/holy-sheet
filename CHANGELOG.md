@@ -4,6 +4,105 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-11-07
+
+Approved in the change council as CC-fancy-0012 and CC-fancy-0013 (owner, plus
+MOIC and Tynn, 2 of 2 each). The JavaScript and Python packages ship the same
+options, defaults, refusals and messages; the cases all three pass are in
+`tests/fixtures/read-options/cases.json`.
+
+### Added
+
+- **Read one sheet by name: `Agent::read($bytes, ['sheet' => 'Contacts'])`**
+  (and `describe($path, [...])`). Only that sheet is parsed; the others cost
+  nothing and count toward no limit. Names match exactly, as written in the
+  file. An unknown name throws `SheetNotFoundException` (an
+  `InvalidArgumentException`) carrying `sheet` and `available`, with a message
+  listing every sheet: `[holy-sheet] no sheet named "Nope"; this workbook has:
+  "Data", "Summary"`. Works for `.ods` too.
+  **What to do:** nothing; without `sheet` a read returns every sheet as before.
+  If you read a whole workbook to use one sheet, pass `sheet` instead.
+- **`Agent::rows($sheet, $options)`: a read sheet as rows of values in column
+  order.** Row 1 and column A are index 0. A blank row in the middle is `[]`, so
+  row indexes are preserved; trailing blank rows are not padded, and a row stops
+  at its last value. A formula gives its cached `computedValue` by default, which
+  is what the cell displays (null when the file cached none);
+  `'formulas' => 'formula'` gives the formula with its leading `=`. A merged
+  region's value appears at its top-left cell only. The view is sized before it
+  is built and refuses (`ReadLimitExceeded`, `maxCells`) past `maxCells`
+  positions, because a few cells far to the right of a million rows would
+  otherwise pad to billions.
+  **What to do:** nothing; it is new. Use it instead of walking `cells` yourself.
+- **Border styles beyond thin.** Each border side takes a bare colour, which is
+  a thin line exactly as before, or `{"style": ..., "color": ...}` with `style`
+  one of `thin`, `medium`, `thick`, `dashed`, `dotted`, `double` (thin when
+  omitted) and `color` `#RRGGBB` (black when omitted). `validate()` reports a bad
+  style, colour or key at its path. `read()` gives a thin side back as the bare
+  colour and another style as the object, so a schema with styled borders
+  round-trips (`diff` of it and its read-back is `[]`). An Excel style outside
+  the six (`hair`, `mediumDashDot`, ...) reads as thin, as it always did. The
+  shared JSON Schema gains a `Border` definition (new SHA-256 in all three
+  repos).
+  **What to do:** nothing. A bare colour writes byte for byte as before. To use
+  a style, give the side an object.
+- **Read limits on rows, columns, cells and shared strings.** Until now only the
+  archive guard's byte limits bounded a read, and bytes are not what a read
+  spends: a 64 MiB worksheet part can hold millions of `<c>` elements, and one
+  `.ods` cell can repeat across a whole sheet. Pass `['limits' => [...]]` to
+  `read()` / `describe()`; each value must be a positive integer, and an unknown
+  key or any other value is refused as `ArchiveRefused` with reason
+  `read_limits`, as the archive limits are. Each limit is checked before the
+  thing it counts is built: a worksheet is counted from its parsed part before
+  one cell object exists, the shared-strings table before one string is
+  rendered, an `.ods` repeat before it is expanded.
+  A refusal is the new **`ReadLimitExceeded`**, which extends `ArchiveRefused`
+  (reason `read_limit`), so a catch for the archive guard still catches it. It
+  carries `limit` (which one), `max` and `actual`, and a message for people:
+  `Spreadsheet refused: a sheet has 1,200,000 rows, over the limit of 1,048,576
+  rows (maxRows) by 151,424.` It names no sheet and quotes no content.
+  `maxCells` counts sheet by sheet, so its message says "at least".
+  The defaults, and why:
+  - `maxRows` **1,048,576** and `maxColumns` **16,384**: Excel's own sheet
+    limits, which LibreOffice shares and which this package already treats as
+    the edge of a sheet (the ODS reader clamps there; `columnWidths` and
+    `hiddenRows` validate against them). They are set AT those limits, not
+    above: every sheet any spreadsheet application can save is admitted, and a
+    row or column past them is not one Excel can open. Counted per sheet,
+    including a `<row>` past the last cell and a `<col>` past the last column
+    (`<col max="2000000000">` used to drive a loop that long).
+  - `maxCells` **20,000,000**, the whole workbook. Measured, not guessed: a
+    workbook of 1,000,000 rows x 10 columns written by this package holds
+    10,000,010 cells (with its header row) and one of 300,000 rows x 50 columns
+    holds 15,000,050; the defaults admit both (run through `ReadLimits` itself).
+    20,000,000 is the larger of the two with a third to spare. As a memory
+    bound: a PHP read measured 1,260 bytes per cell at peak (1,100,010 cells,
+    1,322 MiB), so the default allows a read of about 25 GB, and PHP's
+    `memory_limit` will usually stop a read well before it.
+  - `maxSharedStrings` **20,000,000**, the same as `maxCells`: a table with more
+    distinct strings than the workbook may hold cells has entries no cell can
+    reference.
+  **Measured limits you will meet first.** Both measured workbooks are refused
+  today, with or without this release, by the archive guard's existing byte
+  limits: the 1,000,000 x 10 sheet part is 553,315,173 bytes and the 300,000 x
+  50 part is 865,123,885, against `maxPartBytes` of 64 MiB (and
+  `maxExpandedBytes` of 256 MiB). With 10 mixed columns that part limit is
+  reached at about 120,000 rows. Raising it is a separate decision; this release
+  does not change it.
+  **What to do:** nothing for an ordinary workbook; no default refuses a sheet
+  Excel can hold. If you show refusals to people, catch `ReadLimitExceeded`
+  (or keep catching `ArchiveRefused`) and show its message. Lower a limit to
+  bound a read more tightly than the defaults.
+
+### Security
+
+- **One `<col>` element could exhaust a read's memory.** The column-width
+  reader expanded `<col min="1" max="...">` one column at a time, so a 1.5 KB
+  file with `max="2000000000"` ran a PHP read out of memory (measured: `Allowed
+  memory size of 536870912 bytes exhausted` against 2.12.0). The default
+  `maxColumns` now refuses it before the loop. An `.ods` cell repeated across
+  rows and columns is bounded the same way by `maxCells`.
+  **What to do:** upgrade if you read uploaded files.
+
 ## [2.12.0] - 2026-11-07
 
 ### Added

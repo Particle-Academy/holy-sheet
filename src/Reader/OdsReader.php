@@ -7,6 +7,7 @@ namespace HolySheet\Reader;
 use HolySheet\Archive\OfficeTemplate;
 use HolySheet\Archive\PartXml;
 use HolySheet\Archive\SourceArchive;
+use HolySheet\Exceptions\SheetNotFoundException;
 use HolySheet\Reader\Ods\Ns;
 use HolySheet\Reader\Ods\OdsFormula;
 use HolySheet\Reader\Ods\OdsStyles;
@@ -65,20 +66,28 @@ final class OdsReader
     /** Days from the spreadsheet epoch (1899-12-30) to the Unix epoch. */
     private const UNIX_EPOCH_SERIAL = 25569;
 
+    /** The running read limits for this read; set by readArchive(). */
+    private ?ReadLimits $limits = null;
+
     /** @return array<string,mixed> */
-    public function describe(string $path): array
+    public function describe(string $path, ?string $sheet = null, ?ReadLimits $limits = null): array
     {
-        return WorkbookSchema::fromWorkbook($this->readWorkbook($path));
+        return WorkbookSchema::fromWorkbook($this->readWorkbook($path, $sheet, $limits));
     }
 
-    public function readWorkbook(string $path): Workbook
+    public function readWorkbook(string $path, ?string $sheet = null, ?ReadLimits $limits = null): Workbook
     {
-        return $this->readArchive(SourceArchive::fromPath($path), $path);
+        return $this->readArchive(SourceArchive::fromPath($path), $path, $sheet, $limits);
     }
 
-    /** The same read, from an already-opened (and already limit-checked) archive. */
-    public function readArchive(SourceArchive $zip, string $path = '(bytes)'): Workbook
+    /**
+     * The same read, from an already-opened (and already limit-checked) archive.
+     * `$only` reads just the table of that name; an unknown name throws
+     * SheetNotFoundException listing every table.
+     */
+    public function readArchive(SourceArchive $zip, string $path = '(bytes)', ?string $only = null, ?ReadLimits $limits = null): Workbook
     {
+        $this->limits = $limits ?? ReadLimits::from();
         $sourceKind = OfficeTemplate::kind($zip, $path);
         $content = $zip->read('content.xml');
         $styles = $zip->read('styles.xml');
@@ -100,9 +109,25 @@ final class OdsReader
         $sheets = [];
         $body = OdsStyles::child($contentXml, Ns::OFFICE, 'body');
         $spreadsheet = $body === null ? null : OdsStyles::child($body, Ns::OFFICE, 'spreadsheet');
+        if ($only !== null) {
+            $names = [];
+            if ($spreadsheet !== null) {
+                foreach ($spreadsheet->children(Ns::TABLE) as $name => $table) {
+                    if ($name === 'table') {
+                        $names[] = (string) $table->attributes(Ns::TABLE)['name'];
+                    }
+                }
+            }
+            if (! in_array($only, $names, true)) {
+                throw new SheetNotFoundException($only, $names);
+            }
+        }
         if ($spreadsheet !== null) {
             foreach ($spreadsheet->children(Ns::TABLE) as $name => $table) {
                 if ($name === 'table') {
+                    if ($only !== null && (string) $table->attributes(Ns::TABLE)['name'] !== $only) {
+                        continue;
+                    }
                     $sheet = $this->readSheet($table, $styleIndex);
                     if (isset($hiddenTableStyles[(string) $table->attributes(Ns::TABLE)['style-name']])) {
                         $sheet = $sheet->with(['state' => 'hidden']);
@@ -277,6 +302,21 @@ final class OdsReader
         if ($entries === []) {
             $state['row'] += $repeat;
             return;
+        }
+
+        // The whole repeat block is counted before any of it is expanded: one
+        // cell repeated across a sheet is billions of cells from one element.
+        if ($this->limits !== null) {
+            $rowsHere = min($repeat, self::MAX_ROWS - $state['row']);
+            $values = 0;
+            $width = 0;
+            foreach ($entries as [$col, $read]) {
+                $width = max($width, $col + 1);
+                if ($read !== null) {
+                    $values++;
+                }
+            }
+            $this->limits->sheet($state['row'] + $rowsHere, $width, $values * $rowsHere);
         }
 
         for ($r = 0; $r < $repeat && $state['row'] < self::MAX_ROWS; $r++) {

@@ -7,6 +7,7 @@ namespace HolySheet\Schema;
 use HolySheet\Exceptions\SchemaException;
 use HolySheet\Exchange\Insert;
 use HolySheet\Workbook\CellAddress;
+use HolySheet\Workbook\CellFormat;
 use HolySheet\Workbook\ChartRange;
 
 /**
@@ -209,6 +210,8 @@ final class Validator
                         if (is_array($cell) && array_is_list($cell)) {
                             $errors[] = $this->error("{$path}.rows[{$j}][{$k}]", 'a cell value or a cell object', 'array', $cell,
                                 'This cell is a list, which usually means the row is nested one level too deep: `rows: [[["x"]]]` makes cell A1 a list, where `rows: [["x"]]` makes it "x". For a cell with formatting use the object form: {"value": "x", "format": {...}}.');
+                        } elseif (is_array($cell) && is_array($cell['format'] ?? null)) {
+                            $errors = array_merge($errors, $this->validateBorders($cell['format'], "{$path}.rows[{$j}][{$k}].format"));
                         }
                     }
                 }
@@ -284,6 +287,9 @@ final class Validator
         }
         if (isset($sheet['cells']) && is_array($sheet['cells'])) {
             foreach ($sheet['cells'] as $address => $cell) {
+                if (is_array($cell) && is_array($cell['format'] ?? null)) {
+                    $errors = array_merge($errors, $this->validateBorders($cell['format'], "{$path}.cells.{$address}.format"));
+                }
                 if (!is_array($cell) || !is_array($cell['format'] ?? null) || !array_key_exists('formatCode', $cell['format'])) {
                     continue;
                 }
@@ -355,6 +361,49 @@ final class Validator
      * @param  mixed  $col
      * @return list<array{path:string,expected:string,got:string,value:mixed,hint:string}>
      */
+    /**
+     * Each border side is a bare colour (a thin line, as it always was) or
+     * `{style?, color?}`. A bare string is not checked further, as before.
+     *
+     * @param  array<mixed>  $format
+     * @return list<array{path:string,expected:string,got:string,value:mixed,hint:string}>
+     */
+    private function validateBorders(array $format, string $path): array
+    {
+        $errors = [];
+        $styles = implode(', ', CellFormat::BORDER_STYLES);
+        foreach (['borderTop', 'borderRight', 'borderBottom', 'borderLeft'] as $side) {
+            if (!array_key_exists($side, $format) || is_string($format[$side])) {
+                continue;
+            }
+            $border = $format[$side];
+            if (!is_array($border) || ($border !== [] && array_is_list($border))) {
+                $errors[] = $this->error("{$path}.{$side}", 'a colour like "#000000", or {"style", "color"}', $this->typeOf($border), $border,
+                    'A bare colour is a thin border: "#000000". For another line style use {"style": "dashed", "color": "#000000"}; styles: '.$styles.'.');
+
+                continue;
+            }
+            foreach ($border as $key => $value) {
+                if ($key === 'style') {
+                    if (!is_string($value) || !in_array($value, CellFormat::BORDER_STYLES, true)) {
+                        $errors[] = $this->error("{$path}.{$side}.style", 'one of: '.$styles, $this->typeOf($value), $value,
+                            'The line style of this side: '.$styles.'. Omit it for thin.');
+                    }
+                } elseif ($key === 'color') {
+                    if (!is_string($value) || preg_match('/^#[0-9A-Fa-f]{6}$/', $value) !== 1) {
+                        $errors[] = $this->error("{$path}.{$side}.color", '#RRGGBB', $this->typeOf($value), $value,
+                            'A hex colour, like "#1F3A5F". Omit it for black.');
+                    }
+                } else {
+                    $errors[] = $this->error("{$path}.{$side}.{$key}", 'style or color', 'unknown key', $value,
+                        'A border side takes only "style" and "color".');
+                }
+            }
+        }
+
+        return $errors;
+    }
+
     private function validateColumn(mixed $col, string $path): array
     {
         if (!is_array($col)) {

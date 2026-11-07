@@ -78,7 +78,7 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 ## Features
 
 - ✅ Multi-sheet workbooks, inline strings, scalar types, formulas with optional cached values
-- ✅ Full styling — bold/italic, text alignment, font color/size, fills, borders
+- ✅ Full styling — bold/italic, text alignment, font color/size, fills, borders (thin, medium, thick, dashed, dotted or double, per side)
 - ✅ Number formats — currency (USD/EUR/GBP/JPY/CNY/INR/AUD/CAD/CHF/KRW + ISO fallback), percent, date, datetime, integer, decimals
 - ✅ Date conversion — ISO strings + `DateTimeInterface` → Excel serial numbers
 - ✅ Themes — `default`, `business`, `minimal`, `plain`
@@ -143,6 +143,53 @@ Agent::write([
 
 The reader does not return validations yet: `describe()` of a file with them
 reads its cells as before.
+
+## Reading: one sheet, rows, and read limits (2.13+)
+
+```php
+use HolySheet\Agent;
+use HolySheet\Exceptions\ReadLimitExceeded;
+
+// Only the sheet you name is parsed. Names match exactly; an unknown one throws
+// SheetNotFoundException, whose message lists every sheet in the workbook.
+$schema = Agent::read($bytes, ['sheet' => 'Contacts']);
+
+// The sheet as rows of values in column order. A blank row in the middle is
+// [], so $rows[$n - 1] is always row n; trailing blank rows are not padded.
+$rows = Agent::rows($schema['sheets'][0]);
+// A formula gives its cached computedValue (what the cell shows). Ask for
+// the formula instead with 'formulas' => 'formula' ("=SUM(B2:B9)").
+// A merged region's value appears at its top-left cell only.
+```
+
+A read is bounded by what the file expands into, not only by its bytes:
+
+| Limit | Default | Counts |
+|---|---|---|
+| `maxRows` | 1,048,576 | per sheet: the highest row a cell or `<row>` uses |
+| `maxColumns` | 16,384 | per sheet: the highest column a cell or `<col>` uses |
+| `maxCells` | 20,000,000 | the whole workbook, every cell element |
+| `maxSharedStrings` | 20,000,000 | entries in the shared-strings table |
+
+Each is checked before the thing it counts is built. Override any of them with
+positive integers; an unknown key or any other value is refused as
+`ArchiveRefused` with reason `read_limits`:
+
+```php
+try {
+    Agent::read($bytes, ['limits' => ['maxRows' => 200000]]);
+} catch (ReadLimitExceeded $e) {
+    // $e->limit 'maxRows', $e->max 200000, $e->actual 250001, and a message for people:
+    // "Spreadsheet refused: a sheet has 250,001 rows, over the limit of 200,000 rows (maxRows) by 50,001."
+}
+```
+
+`ReadLimitExceeded` extends `ArchiveRefused` (reason `read_limit`), so code that
+already catches the archive guard keeps working. The archive guard's byte limits
+still apply first, and they are the tighter bound today: a single worksheet part
+over 64 MiB is refused (`archive_limit`), which a sheet of 10 mixed columns
+reaches at about 120,000 rows. The JavaScript and Python packages take the same
+options and refuse with the same reasons and messages.
 
 ## Excel and LibreOffice templates (.xltx, .ots)
 

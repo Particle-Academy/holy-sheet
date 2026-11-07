@@ -115,6 +115,7 @@ final class StylesRegistry
         $rec = [
             'top' => $f->borderTop, 'right' => $f->borderRight,
             'bottom' => $f->borderBottom, 'left' => $f->borderLeft,
+            'styles' => ['top' => $f->borderTopStyle, 'right' => $f->borderRightStyle, 'bottom' => $f->borderBottomStyle, 'left' => $f->borderLeftStyle],
         ];
         $key = md5(serialize($rec));
         if (isset($this->borderIndex[$key])) return $this->borderIndex[$key];
@@ -184,7 +185,8 @@ final class StylesRegistry
                 if (empty($b[$side])) {
                     $bordersXml .= "<{$side}/>";
                 } else {
-                    $bordersXml .= "<{$side} style=\"thin\"><color rgb=\"".self::hexToArgb($b[$side])."\"/></{$side}>";
+                    $style = $b['styles'][$side] ?? 'thin';
+                    $bordersXml .= "<{$side} style=\"{$style}\"><color rgb=\"".self::hexToArgb($b[$side])."\"/></{$side}>";
                 }
             }
             $bordersXml .= '<diagonal/></border>';

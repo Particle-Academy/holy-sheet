@@ -1,0 +1,76 @@
+{
+  "about": "CC-fancy-0012: inputs for the CSV parity suites of holy-sheet-js and holy-sheet-py. Each port runs every call through its own CSV writer and through PHP's Exchange\\Csv::toCsv(), and the results must be identical, text and report. Expectations are PHP's output at test time, never stored here.",
+  "calls": [
+    {"name": "quoting", "options": null, "table": {"rows": [
+      {"cells": [{"t": "string", "v": "plain"}, {"t": "string", "v": "a,b"}, {"t": "string", "v": "say \"hi\""}, {"t": "string", "v": "two\nlines"}, {"t": "string", "v": "cr\rhere"}]},
+      {"cells": [{"t": "number", "v": 42}, {"t": "number", "v": -2.5}, {"t": "bool", "v": true}, {"t": "bool", "v": false}, {"t": "empty"}]}
+    ]}},
+    {"name": "formula injection is escaped by default", "options": null, "table": {"rows": [
+      {"cells": [{"t": "string", "v": "=1+2"}, {"t": "string", "v": "+x"}, {"t": "string", "v": "-y"}, {"t": "string", "v": "@z"}, {"t": "string", "v": "\ttab"}, {"t": "string", "v": "\rcr"}]},
+      {"cells": [{"t": "error", "v": "=HYPERLINK(\"x\")"}, {"t": "error", "v": "#DIV/0!"}, {"t": "number", "v": -5}, {"t": "string", "v": ""}, {"t": "string", "v": "a=b"}, {"t": "string", "v": "=\"q,\""}]}
+    ]}},
+    {"name": "escaping off is the host's choice", "options": {"escapeFormulas": false}, "table": {"rows": [
+      {"cells": [{"t": "string", "v": "=1+2"}, {"t": "string", "v": "@z"}]}
+    ]}},
+    {"name": "explicit escaping on", "options": {"escapeFormulas": true, "display": false}, "table": {"rows": [
+      {"cells": [{"t": "string", "v": "=1+2"}]}
+    ]}},
+    {"name": "canonical numbers", "options": null, "table": {"rows": [
+      {"cells": [{"t": "number", "v": 0.30000000000000004}, {"t": "number", "v": 1e21}, {"t": "number", "v": 0.3333333333333333}, {"t": "number", "v": -0.0}, {"t": "number", "v": 1234567.891}, {"t": "number", "v": 1.0e-7}, {"t": "number", "v": "not a number"}]}
+    ]}},
+    {"name": "display formats", "options": {"display": true}, "table": {"rows": [
+      {"cells": [
+        {"t": "number", "v": 1234567.891, "format": {"kind": "number", "decimals": 2}},
+        {"t": "number", "v": 1.005, "format": {"kind": "number", "decimals": 2}},
+        {"t": "number", "v": 2.675, "format": {"kind": "currency", "decimals": 2, "currency": "EUR"}},
+        {"t": "number", "v": 1234.5, "format": {"kind": "currency", "currency": "JPY", "decimals": 0}},
+        {"t": "number", "v": 99.5, "format": {"kind": "currency", "currency": "XYZ"}},
+        {"t": "number", "v": 12, "format": {"kind": "currency"}},
+        {"t": "number", "v": 0.145, "format": {"kind": "percent"}},
+        {"t": "number", "v": 0.5, "format": {"kind": "percent", "decimals": 0}},
+        {"t": "number", "v": -0.0004, "format": {"kind": "number", "decimals": 2}},
+        {"t": "number", "v": -1234.5, "format": {"kind": "currency", "currency": "GBP"}},
+        {"t": "number", "v": 999.9999, "format": {"kind": "number"}}
+      ]},
+      {"cells": [
+        {"t": "date", "v": "2026-11-07", "format": {"kind": "date"}},
+        {"t": "datetime", "v": "2026-11-07T13:45:10Z", "format": {"kind": "datetime"}},
+        {"t": "date", "v": "2026-11-07", "format": {"kind": "datetime"}},
+        {"t": "datetime", "v": "2026-11-07T13:45:10Z", "format": {"kind": "date"}},
+        {"t": "number", "v": 3, "text": "three"},
+        {"t": "string", "v": "=shown", "text": "=shown"},
+        {"t": "number", "v": 7, "format": {"kind": "text"}},
+        {"t": "number", "v": 1.5, "format": {"kind": "number", "decimals": 1.0}}
+      ]}
+    ]}},
+    {"name": "display off ignores formats", "options": {"display": false}, "table": {"rows": [
+      {"cells": [{"t": "number", "v": 0.145, "format": {"kind": "percent"}}, {"t": "number", "v": 3, "text": "three"}, {"t": "date", "v": "2026-11-07"}]}
+    ]}},
+    {"name": "merges flatten to the top-left", "options": null, "table": {"rows": [
+      {"cells": [{"t": "string", "v": "wide", "colSpan": 2}, {"t": "string", "v": "tall", "rowSpan": 2}]},
+      {"cells": [{"t": "string", "v": "a"}, {"t": "string", "v": "b"}]},
+      {"cells": [{"t": "string", "v": "box", "colSpan": 2, "rowSpan": 2}, {"t": "number", "v": 1}]},
+      {"cells": [{"t": "number", "v": 2}]}
+    ]}},
+    {"name": "the where list caps at sixteen", "options": null, "table": {"rows": [
+      {"cells": [
+        {"t": "string", "v": "=1"}, {"t": "string", "v": "=2"}, {"t": "string", "v": "=3"}, {"t": "string", "v": "=4"},
+        {"t": "string", "v": "=5"}, {"t": "string", "v": "=6"}, {"t": "string", "v": "=7"}, {"t": "string", "v": "=8"},
+        {"t": "string", "v": "=9"}, {"t": "string", "v": "=10"}, {"t": "string", "v": "=11"}, {"t": "string", "v": "=12"},
+        {"t": "string", "v": "=13"}, {"t": "string", "v": "=14"}, {"t": "string", "v": "=15"}, {"t": "string", "v": "=16"},
+        {"t": "string", "v": "=17"}, {"t": "string", "v": "=18"}, {"t": "string", "v": "=19"}, {"t": "string", "v": "=20"}
+      ]}
+    ]}},
+    {"name": "unicode passes through", "options": null, "table": {"rows": [
+      {"cells": [{"t": "string", "v": "naïve café"}, {"t": "string", "v": "日本語, 漢字"}, {"t": "string", "v": "emoji 🎉"}]}
+    ]}},
+    {"name": "an empty table", "options": null, "table": {"rows": []}},
+    {"name": "a table with no rows key", "options": null, "table": {}},
+    {"name": "a row with no cells", "options": null, "table": {"rows": [{"cells": []}, {"cells": []}]}},
+    {"name": "non-string values in a string cell", "options": null, "table": {"rows": [
+      {"cells": [{"t": "string", "v": 12}, {"t": "string", "v": null}, {"t": "string", "v": true}, {"t": "string", "v": "a/b"}]}
+    ]}},
+    {"name": "an unknown option", "options": {"delimiter": ";"}, "table": {"rows": []}},
+    {"name": "a non-boolean option", "options": {"escapeFormulas": "no"}, "table": {"rows": []}}
+  ]
+}

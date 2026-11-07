@@ -29,12 +29,14 @@ final class WorksheetParser
      * @param  array<string,CellComment>  $comments
      * @param  list<string>  $sharedStrings
      */
-    public static function parse(string $worksheetXml, string $name, array $stylesIndex, array $comments = [], array $sharedStrings = []): Sheet
+    public static function parse(string $worksheetXml, string $name, array $stylesIndex, array $comments = [], array $sharedStrings = [], ?ReadLimits $limits = null): Sheet
     {
         $xml = PartXml::simple($worksheetXml);
         if ($xml === false) {
             return new Sheet(name: $name);
         }
+        // Counted from the parsed part before one Cell is built.
+        $limits?->worksheet($xml);
 
         $cells = self::parseCells($xml, $stylesIndex, $comments, $sharedStrings);
         $merges = self::parseMerges($xml);

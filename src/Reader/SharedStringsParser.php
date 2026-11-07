@@ -18,13 +18,19 @@ use SimpleXMLElement;
  */
 final class SharedStringsParser
 {
-    /** @return list<string> */
-    public static function parse(string $xml): array
+    /**
+     * The table is counted before any entry is rendered, so a refusal under
+     * `maxSharedStrings` costs the parse and nothing built from it.
+     *
+     * @return list<string>
+     */
+    public static function parse(string $xml, ?ReadLimits $limits = null): array
     {
         $doc = PartXml::simple($xml);
         if ($doc === false) {
             return [];
         }
+        $limits?->sharedStrings($doc->si->count());
 
         $out = [];
         foreach ($doc->si as $si) {

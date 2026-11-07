@@ -17,7 +17,10 @@ use HolySheet\Ops\SheetDiff;
 use HolySheet\Ops\SheetOpSchema;
 use HolySheet\Ops\SheetReducer;
 use HolySheet\Reader\FormatSniffer;
+use HolySheet\Exceptions\ArchiveRefused;
 use HolySheet\Reader\OdsReader;
+use HolySheet\Reader\ReadLimits;
+use HolySheet\Reader\RowsView;
 use HolySheet\Reader\WorkbookSchema;
 use HolySheet\Reader\XlsxReader;
 use HolySheet\Schema\DumpOptions;
@@ -118,15 +121,60 @@ final class Agent
      *
      * @throws UnsupportedFormatException when the file is neither
      */
-    public static function describe(string $path): array
+    public static function describe(string $path, array $options = []): array
     {
+        [$sheet, $limits] = self::readOptions($options);
         if (!is_file($path)) {
             return ['error' => 'not_found', 'path' => $path];
         }
         return match (FormatSniffer::sniff($path)) {
-            FormatSniffer::ODS => (new OdsReader())->describe($path),
-            FormatSniffer::XLSX => (new XlsxReader())->describe($path),
+            FormatSniffer::ODS => (new OdsReader())->describe($path, $sheet, $limits),
+            FormatSniffer::XLSX => (new XlsxReader())->describe($path, $sheet, $limits),
         };
+    }
+
+    /**
+     * A read sheet as rows: a list of rows, each a list of values in column
+     * order (row 1 and column A at index 0). A blank row in the middle is `[]`,
+     * so indexes are row numbers minus one; trailing blank rows are not padded.
+     * A formula gives its cached `computedValue` unless `formulas` is
+     * `'formula'`; a merged region's value is at its top-left only. Bounded by
+     * `maxCells` (default ReadLimits::DEFAULTS['maxCells']).
+     *
+     * @param  array<string,mixed>  $sheet  one entry of `read()['sheets']`
+     * @param  array<string,mixed>  $options  `formulas` ('computed' | 'formula'), `maxCells`
+     * @return list<list<mixed>>
+     *
+     * @throws \HolySheet\Exceptions\ReadLimitExceeded when the view would hold more than maxCells positions
+     */
+    public static function rows(array $sheet, array $options = []): array
+    {
+        return RowsView::rows($sheet, $options);
+    }
+
+    /**
+     * `sheet` (a name) and `limits` (ReadLimits keys), checked before the file is opened.
+     *
+     * @param  array<mixed>  $options
+     * @return array{0:?string,1:ReadLimits}
+     */
+    private static function readOptions(array $options): array
+    {
+        foreach (array_keys($options) as $key) {
+            if ($key !== 'sheet' && $key !== 'limits') {
+                throw new \InvalidArgumentException("[holy-sheet] unknown read option: {$key}");
+            }
+        }
+        $sheet = $options['sheet'] ?? null;
+        if ($sheet !== null && ! is_string($sheet)) {
+            throw new \InvalidArgumentException('[holy-sheet] read option sheet must be a sheet name (a string)');
+        }
+        $limits = $options['limits'] ?? [];
+        if (! is_array($limits)) {
+            throw new ArchiveRefused('read_limits');
+        }
+
+        return [$sheet, ReadLimits::from($limits)];
     }
 
     /**
@@ -135,18 +183,29 @@ final class Agent
      * `read`). Same schema, same refusals; bytes are told from a path the way
      * `convertTemplate()` tells them.
      *
+     * Options: `sheet` reads only the sheet of that exact name (the others are
+     * never parsed); `limits` overrides ReadLimits::DEFAULTS (`maxRows`,
+     * `maxColumns`, `maxCells`, `maxSharedStrings`). `describe()` takes the same.
+     *
+     * @param  array{sheet?: string, limits?: array<string,int>}  $options
      * @return array<string,mixed>
+     *
+     * @throws \HolySheet\Exceptions\ReadLimitExceeded when the file expands past a read limit
+     * @throws \HolySheet\Exceptions\SheetNotFoundException for an unknown `sheet`
      *
      * @throws UnsupportedFormatException when the input is neither an xlsx nor an ods
      * @throws \HolySheet\Exceptions\ArchiveRefused through the archive guard
      */
-    public static function read(string $bytesOrPath): array
+    public static function read(string $bytesOrPath, array $options = []): array
     {
         if (Exporter::isPath($bytesOrPath)) {
-            return self::describe($bytesOrPath);
+            return self::describe($bytesOrPath, $options);
         }
+        [$sheet, $limits] = self::readOptions($options);
         [$zip, $kind] = FormatSniffer::sniffBytes($bytesOrPath);
-        $workbook = $kind === FormatSniffer::ODS ? (new OdsReader())->readArchive($zip) : (new XlsxReader())->readArchive($zip);
+        $workbook = $kind === FormatSniffer::ODS
+            ? (new OdsReader())->readArchive($zip, '(bytes)', $sheet, $limits)
+            : (new XlsxReader())->readArchive($zip, '(bytes)', $sheet, $limits);
 
         return WorkbookSchema::fromWorkbook($workbook);
     }

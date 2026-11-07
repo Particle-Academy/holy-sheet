@@ -7,6 +7,7 @@ namespace HolySheet\Reader;
 use HolySheet\Archive\OfficeTemplate;
 use HolySheet\Archive\PartXml;
 use HolySheet\Archive\SourceArchive;
+use HolySheet\Exceptions\SheetNotFoundException;
 use HolySheet\Workbook\Workbook;
 use RuntimeException;
 use SimpleXMLElement;
@@ -28,26 +29,33 @@ final class XlsxReader
      *
      * @return array<string,mixed>
      */
-    public function describe(string $path): array
+    public function describe(string $path, ?string $sheet = null, ?ReadLimits $limits = null): array
     {
-        return WorkbookSchema::fromWorkbook($this->readWorkbook($path));
+        return WorkbookSchema::fromWorkbook($this->readWorkbook($path, $sheet, $limits));
     }
 
-    public function readWorkbook(string $path): Workbook
+    public function readWorkbook(string $path, ?string $sheet = null, ?ReadLimits $limits = null): Workbook
     {
-        return $this->readArchive(SourceArchive::fromPath($path), $path);
+        return $this->readArchive(SourceArchive::fromPath($path), $path, $sheet, $limits);
     }
 
-    /** The same read, from an already-opened (and already limit-checked) archive. */
-    public function readArchive(SourceArchive $zip, string $path = '(bytes)'): Workbook
+    /**
+     * The same read, from an already-opened (and already limit-checked) archive.
+     *
+     * `$only` reads just the sheet of that name (exactly as written in the
+     * file); the others are never parsed, so they cost nothing and count toward
+     * no limit. An unknown name throws SheetNotFoundException.
+     */
+    public function readArchive(SourceArchive $zip, string $path = '(bytes)', ?string $only = null, ?ReadLimits $limits = null): Workbook
     {
+        $limits ??= ReadLimits::from();
         $sourceKind = OfficeTemplate::kind($zip, $path);
 
         $stylesXml = $zip->read('xl/styles.xml');
         $stylesIndex = is_string($stylesXml) ? StylesParser::parse($stylesXml) : [];
 
         $sharedStringsXml = $zip->read('xl/sharedStrings.xml');
-        $sharedStrings = is_string($sharedStringsXml) ? SharedStringsParser::parse($sharedStringsXml) : [];
+        $sharedStrings = is_string($sharedStringsXml) ? SharedStringsParser::parse($sharedStringsXml, $limits) : [];
 
         $workbookXml = $zip->read('xl/workbook.xml');
         if ($workbookXml === null) {
@@ -62,11 +70,24 @@ final class XlsxReader
             throw new RuntimeException("[holy-sheet] failed to parse xl/workbook.xml in {$path}");
         }
 
+        if ($only !== null) {
+            $names = [];
+            if (isset($sheetsXml->sheets) && $sheetsXml->sheets->sheet) {
+                foreach ($sheetsXml->sheets->sheet as $sheetEl) {
+                    $names[] = (string) $sheetEl['name'];
+                }
+            }
+            if (! in_array($only, $names, true)) {
+                throw new SheetNotFoundException($only, $names);
+            }
+        }
+
         $sheets = [];
         if (isset($sheetsXml->sheets) && $sheetsXml->sheets->sheet) {
             $i = 0;
             foreach ($sheetsXml->sheets->sheet as $sheetEl) {
                 $name = (string) $sheetEl['name'];
+                if ($only !== null && $name !== $only) continue;
                 $rId = (string) $sheetEl->attributes('r', true)->id;
                 $target = $workbookRels[$rId]['Target'] ?? null;
                 if ($target === null) continue;
@@ -94,7 +115,7 @@ final class XlsxReader
                     }
                 }
 
-                $sheet = WorksheetParser::parse($worksheetXml, $name, $stylesIndex, $comments, $sharedStrings);
+                $sheet = WorksheetParser::parse($worksheetXml, $name, $stylesIndex, $comments, $sharedStrings, $limits);
 
                 // Charts: sheet rels -> drawing -> drawing rels -> chart parts.
                 if (is_string($sheetRelsXml)) {

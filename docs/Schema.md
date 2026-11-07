@@ -99,9 +99,9 @@ A row is an array of values, one per column. Each value can be:
     "color": "#FFFFFF",
     "backgroundColor": "#1F2937",
     "fontSize": 12,
-    "borderTop": "#000000",
+    "borderTop": "#000000",                  // a bare colour is a thin line
     "borderRight": null,
-    "borderBottom": null,
+    "borderBottom": { "style": "double", "color": "#000000" },
     "borderLeft": null
   },
   "comment": {                               // optional — see Comment
@@ -111,6 +111,13 @@ A row is an array of values, one per column. Each value can be:
   }
 }
 ```
+
+> **Borders (2.13+):** each side is a bare hex colour, which is a thin line as it
+> always was, or `{ "style": ..., "color": ... }` with `style` one of `thin`,
+> `medium`, `thick`, `dashed`, `dotted`, `double` (thin when omitted) and `color`
+> `#RRGGBB` (black when omitted). `describe()` / `read()` give a thin side back as
+> the bare colour and any other style as the object. A style Excel has and this
+> list does not (`hair`, `mediumDashDot`, ...) reads as thin.
 
 > **Formula shorthand (1.3+):** a **bare string** cell value beginning with `=` is
 > promoted to a real formula cell — `"=SUM(A2:A10)"` is equivalent to

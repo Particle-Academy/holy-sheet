@@ -32,7 +32,7 @@ Requires PHP `^8.4` and `ext-zip`. No runtime Composer dependencies.
 Two entry points over the same implementation:
 
 - **`HolySheet\Agent`**, static: `validate`, `validateAndRepair`, `write`,
-  `toBytes`, `read`, `describe`, `lint`, `fromArray`, `fromCsv`, `dumpJson`,
+  `toBytes`, `read`, `describe`, `rows`, `lint`, `fromArray`, `fromCsv`, `dumpJson`,
   `diff`, `reduce`, `opSchema`, `equivalent`, `toolDefinition`, `guide`,
   `convertTemplate`, and the exchange surface `catalog`, `extract`,
   `fromPortable`, `export`, `exportToolDefinition`.

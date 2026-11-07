@@ -26,7 +26,7 @@ use HolySheet\Schema\DumpOptions;
  */
 final class HolySheet
 {
-    public const VERSION = '2.12.0';
+    public const VERSION = '2.13.0';
 
     /* ------------------------------------------------------------------ */
     /* Instance API (used by the Facade + DI consumers)                    */
@@ -82,9 +82,21 @@ final class HolySheet
      *
      * @return array<string,mixed>
      */
-    public function describe(string $path): array
+    public function describe(string $path, array $options = []): array
     {
-        return Agent::describe($path);
+        return Agent::describe($path, $options);
+    }
+
+    /**
+     * {@see Agent::rows()}: a read sheet as rows of values in column order.
+     *
+     * @param  array<string,mixed>  $sheet
+     * @param  array<string,mixed>  $options
+     * @return list<list<mixed>>
+     */
+    public function rows(array $sheet, array $options = []): array
+    {
+        return Agent::rows($sheet, $options);
     }
 
     /** {@see Agent::convertTemplate()}: .xltx/.ots to .xlsx/.ods and back. */

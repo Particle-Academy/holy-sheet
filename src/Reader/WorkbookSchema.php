@@ -176,10 +176,14 @@ final class WorkbookSchema
         if ($f->color !== null) $out['color'] = $f->color;
         if ($f->backgroundColor !== null) $out['backgroundColor'] = $f->backgroundColor;
         if ($f->fontSize !== null) $out['fontSize'] = $f->fontSize;
-        if ($f->borderTop !== null) $out['borderTop'] = $f->borderTop;
-        if ($f->borderRight !== null) $out['borderRight'] = $f->borderRight;
-        if ($f->borderBottom !== null) $out['borderBottom'] = $f->borderBottom;
-        if ($f->borderLeft !== null) $out['borderLeft'] = $f->borderLeft;
+        // A thin side reads back as the bare colour it always did; another style as {style, color}.
+        foreach (['Top', 'Right', 'Bottom', 'Left'] as $side) {
+            $color = $f->{'border'.$side};
+            if ($color !== null) {
+                $style = $f->{'border'.$side.'Style'};
+                $out['border'.$side] = $style === null ? $color : ['style' => $style, 'color' => $color];
+            }
+        }
         if ($f->currency !== null) $out['currency'] = $f->currency;
         if ($f->formatCode !== null) $out['formatCode'] = $f->formatCode;
         return $out;

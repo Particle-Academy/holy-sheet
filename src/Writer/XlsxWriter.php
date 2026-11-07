@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet\Writer;
 
+use HolySheet\Schema\DataValidations;
 use HolySheet\Workbook\Cell;
 use HolySheet\Workbook\CellAddress;
 use HolySheet\Workbook\Sheet;
@@ -322,6 +323,7 @@ final class XlsxWriter
             .$colsXml
             ."<sheetData>{$rowsXml}</sheetData>"
             .$mergesXml
+            .DataValidations::xml($sheet->dataValidations, $this->escape(...))
             .$pageSetupXml
             .$headerFooterXml
             .($sheet->charts !== [] ? '<drawing r:id="'.self::drawingRelId($sheet->hasComments()).'"/>' : '')

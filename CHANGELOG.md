@@ -4,6 +4,29 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-11-07
+
+### Added
+
+- **Data validation: dropdowns and bounds.** A sheet's `dataValidations` list
+  (`{range, type, ...}`) and a column's `validation` (covering that column's
+  data rows) write Excel data validation: `type: "list"` is a dropdown whose
+  choices come inline from `values` or from cells through `source` (on this
+  sheet or another, written as an absolute reference); `whole`, `decimal`,
+  `date` and `textLength` bound the entry with `operator` (`between`,
+  `notBetween`, `equal`, `notEqual`, `greaterThan`, `lessThan`,
+  `greaterThanOrEqual`, `lessThanOrEqual`) and `min` / `max` or `value`.
+  `allowBlank`, `showDropdown`, an input `prompt` and an `error` alert
+  (`stop`, `warning` or `information`) are optional. `validate()` reports a bad
+  rule at its path, including an inline list over Excel's 255-character limit
+  and a `source` naming a sheet the workbook does not have;
+  `validateAndRepair()` fixes only the case of a type, operator or error style.
+  The reader does not return validations yet.
+  **What to do:** nothing unless you want dropdowns. Workbooks without
+  validations are written byte for byte as before. To add one, see the README's
+  "Data validation" section; a template's dropdown usually belongs in
+  `dataValidations` with a range past the sample rows, like `"B2:B500"`.
+
 ## [2.11.5] - 2026-11-07
 
 ### Security

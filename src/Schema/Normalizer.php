@@ -149,6 +149,7 @@ final class Normalizer
             state: in_array($sheet['state'] ?? null, ['hidden', 'veryHidden'], true) ? $sheet['state'] : 'visible',
             hiddenRows: self::normalizeIndexes($sheet['hiddenRows'] ?? null, 1, 1048576),
             hiddenColumns: self::normalizeIndexes($sheet['hiddenColumns'] ?? null, 0, ColumnWidths::MAX_INDEX),
+            dataValidations: DataValidations::forSheet($sheet, $name),
         );
     }
 

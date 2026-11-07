@@ -84,6 +84,7 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 - ✅ Themes — `default`, `business`, `minimal`, `plain`
 - ✅ Symbolic totals — `'totals' => ['Revenue' => 'sum']` → SUM/AVG/COUNT/MIN/MAX formulas
 - ✅ Merged cells, column widths (px), frozen rows/cols
+- ✅ **Data validation** (2.12+): dropdowns from an inline list or a cell range (another sheet too), whole / decimal / date / text-length bounds, input prompts and error alerts. See [Data validation](#data-validation-dropdowns)
 - ✅ Comments with author + color
 - ✅ Cross-sheet formula references (`Sheet2!A1`)
 - ✅ Style deduplication — every unique format becomes one record
@@ -98,6 +99,50 @@ Agentic flows need something different: a small, deterministic API where an LLM 
 - ✅ **`=`-formula promotion** (1.3+) — a bare string cell beginning with `=` (e.g. `'=A2+B2'`, `'=SUM(B2:B10)'`) is stored as a real formula, not literal text. Use the object form `{'value': '=text'}` for a genuine leading-`=` string
 - ✅ **`dumpJson()`** (1.3+) — `Agent::dumpJson($schema, ?DumpOptions)` serializes a schema to JSON (values + formulas). The read-tool counterpart to `describe()`: describe gives shape, dumpJson gives content. Compaction + a byte ceiling keep agent token cost bounded
 - ✅ **Agent toolkit** (1.3+) — `HolySheet\Toolkit\Toolkit` ships the canonical Build / Write / Read / Lint / Describe tools as framework-agnostic descriptors (`name` + `description` + JSON-Schema `parameters` + callable `handler`) plus a shipped agent prompt. Map them onto any SDK in a few lines (see [Agent toolkit](#agent-toolkit))
+
+## Data validation (dropdowns)
+
+A rule on what a person may type into cells: a dropdown, or a bound on a whole
+number, a decimal, a date or a text length, with an optional input prompt and
+error alert. Set it on a column to cover that column's data rows, or list it on
+the sheet with a `range` (the form a template uses, running past its sample
+rows):
+
+```php
+Agent::write([
+    'sheets' => [
+        [
+            'name' => 'Catalog',
+            'columns' => [
+                ['header' => 'SKU'],
+                ['header' => 'Status', 'validation' => ['type' => 'list', 'values' => ['Draft', 'Live', 'Retired']]],
+            ],
+            'rows' => [['A-1', 'Draft']],
+            'dataValidations' => [
+                ['range' => 'C2:C500', 'type' => 'list', 'source' => "'Lists'!A1:A20",
+                    'prompt' => ['title' => 'Category', 'text' => 'Pick a category.'],
+                    'error' => ['style' => 'stop', 'title' => 'Unknown category', 'text' => 'Choose from the list.']],
+                ['range' => 'D2:D500', 'type' => 'whole', 'operator' => 'between', 'min' => 0, 'max' => 1000],
+                ['range' => 'E2:E500', 'type' => 'date', 'operator' => 'greaterThanOrEqual', 'value' => '2026-01-01'],
+            ],
+        ],
+        ['name' => 'Lists', 'cells' => ['A1' => 'Tools', 'A2' => 'Parts']],
+    ],
+], 'catalog-template.xlsx');
+```
+
+- `type`: `list`, `whole`, `decimal`, `date` (`YYYY-MM-DD`) or `textLength`.
+- A `list` takes `values` (inline) or `source` (a range, on this sheet or
+  another), never both. Inline choices cannot contain a comma and must fit in
+  255 characters joined by commas, which is Excel's limit; `validate()` refuses
+  anything longer and points at `source`.
+- Every other type takes `operator` (default `between`): `between` and
+  `notBetween` take `min` and `max`, the rest take `value`.
+- `allowBlank` (default true), `showDropdown` (lists, default true),
+  `prompt: {title, text}`, `error: {style: stop | warning | information, title, text}`.
+
+The reader does not return validations yet: `describe()` of a file with them
+reads its cells as before.
 
 ## Excel and LibreOffice templates (.xltx, .ots)
 

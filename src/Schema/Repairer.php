@@ -15,6 +15,8 @@ namespace HolySheet\Schema;
  *  - Unknown theme → 'default'
  *  - Trailing/leading whitespace in cell addresses (sparse mode)
  *  - Missing column type with all values matching ISO date regex → 'date'
+ *  - A data validation's type, operator or error style in the wrong case
+ *    ('List' → 'list', 'greaterthan' → 'greaterThan'): one spelling matches
  *
  * Skips ambiguous cases — agents should see those errors and fix them.
  *
@@ -153,6 +155,24 @@ final class Repairer
             }
         }
 
+        // Data validation enums in the wrong case. Only an exact match ignoring
+        // case is repaired; 'dropdown' is not 'list', and saying so is the
+        // validator's job.
+        if (isset($sheet['columns']) && is_array($sheet['columns'])) {
+            foreach ($sheet['columns'] as $colIdx => $col) {
+                if (is_array($col) && is_array($col['validation'] ?? null)) {
+                    $sheet['columns'][$colIdx]['validation'] = $this->repairValidation($col['validation'], "{$path}.columns[{$colIdx}].validation");
+                }
+            }
+        }
+        if (isset($sheet['dataValidations']) && is_array($sheet['dataValidations']) && array_is_list($sheet['dataValidations'])) {
+            foreach ($sheet['dataValidations'] as $k => $dv) {
+                if (is_array($dv)) {
+                    $sheet['dataValidations'][$k] = $this->repairValidation($dv, "{$path}.dataValidations[{$k}]");
+                }
+            }
+        }
+
         // Column-driven repairs (string-numeric coercion + missing date type)
         if (isset($sheet['columns'], $sheet['rows']) && is_array($sheet['columns']) && is_array($sheet['rows'])) {
             $sheet = $this->repairColumnTypeInference($sheet, $path);
@@ -160,6 +180,43 @@ final class Repairer
         }
 
         return $sheet;
+    }
+
+    /**
+     * @param  array<string,mixed>  $dv
+     * @return array<string,mixed>
+     */
+    private function repairValidation(array $dv, string $path): array
+    {
+        $dv = $this->repairCase($dv, 'type', DataValidations::TYPES, "{$path}.type");
+        $dv = $this->repairCase($dv, 'operator', DataValidations::OPERATORS, "{$path}.operator");
+        if (is_array($dv['error'] ?? null)) {
+            $dv['error'] = $this->repairCase($dv['error'], 'style', DataValidations::STYLES, "{$path}.error.style");
+        }
+
+        return $dv;
+    }
+
+    /**
+     * @param  array<string,mixed>  $box
+     * @param  list<string>  $allowed
+     * @return array<string,mixed>
+     */
+    private function repairCase(array $box, string $key, array $allowed, string $path): array
+    {
+        $value = $box[$key] ?? null;
+        if (! is_string($value) || in_array($value, $allowed, true)) {
+            return $box;
+        }
+        foreach ($allowed as $candidate) {
+            if (strtolower($candidate) === strtolower($value)) {
+                $box[$key] = $candidate;
+                $this->repairs[] = "changed '{$path}' from '{$value}' to '{$candidate}'";
+                break;
+            }
+        }
+
+        return $box;
     }
 
     /** @param  array<string,mixed>  $sheet @return array<string,mixed> */

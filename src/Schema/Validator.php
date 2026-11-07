@@ -46,9 +46,16 @@ final class Validator
             return $errors;
         }
 
+        $sheetNames = [];
+        foreach ($schema['sheets'] as $sheet) {
+            if (is_array($sheet) && is_string($sheet['name'] ?? null)) {
+                $sheetNames[] = $sheet['name'];
+            }
+        }
+
         $visible = 0;
         foreach ($schema['sheets'] as $i => $sheet) {
-            $errors = array_merge($errors, $this->validateSheet($sheet, "sheets[{$i}]"));
+            $errors = array_merge($errors, $this->validateSheet($sheet, "sheets[{$i}]", $sheetNames));
             if (!is_array($sheet) || !in_array($sheet['state'] ?? 'visible', ['hidden', 'veryHidden'], true)) {
                 $visible++;
             }
@@ -125,7 +132,7 @@ final class Validator
      * @param  mixed  $sheet
      * @return list<array{path:string,expected:string,got:string,value:mixed,hint:string}>
      */
-    private function validateSheet(mixed $sheet, string $path): array
+    private function validateSheet(mixed $sheet, string $path, array $sheetNames = []): array
     {
         $errors = [];
 
@@ -159,8 +166,15 @@ final class Validator
                 $errors[] = $this->error("{$path}.columns", 'array', $this->typeOf($sheet['columns']), $sheet['columns'],
                     'Columns must be an array of column definitions.');
             } else {
+                $dataRows = is_array($sheet['rows'] ?? null) ? count($sheet['rows']) : 0;
+                $ownSheet = is_string($sheet['name'] ?? null) ? $sheet['name'] : '';
                 foreach ($sheet['columns'] as $j => $col) {
                     $errors = array_merge($errors, $this->validateColumn($col, "{$path}.columns[{$j}]"));
+                    if (is_array($col) && array_key_exists('validation', $col)) {
+                        foreach (DataValidations::problems($col['validation'], $ownSheet, $sheetNames, true, $dataRows) as [$sub, $expected, $got, $value, $hint]) {
+                            $errors[] = $this->error("{$path}.columns[{$j}].validation{$sub}", $expected, $got, $value, $hint);
+                        }
+                    }
                 }
             }
         }
@@ -283,6 +297,21 @@ final class Validator
 
         if (isset($sheet['charts'])) {
             $errors = array_merge($errors, $this->validateCharts($sheet['charts'], $path, (string) ($sheet['name'] ?? '')));
+        }
+
+        if (array_key_exists('dataValidations', $sheet)) {
+            $list = $sheet['dataValidations'];
+            if (!is_array($list) || ($list !== [] && !array_is_list($list))) {
+                $errors[] = $this->error("{$path}.dataValidations", 'a list of validations', $this->typeOf($list), $list,
+                    'dataValidations is a list: [{"range": "B2:B100", "type": "list", "values": ["Open", "Closed"]}].');
+            } else {
+                $ownSheet = is_string($sheet['name'] ?? null) ? $sheet['name'] : '';
+                foreach ($list as $k => $dv) {
+                    foreach (DataValidations::problems($dv, $ownSheet, $sheetNames, false, 0) as [$sub, $expected, $got, $value, $hint]) {
+                        $errors[] = $this->error("{$path}.dataValidations[{$k}]{$sub}", $expected, $got, $value, $hint);
+                    }
+                }
+            }
         }
 
         if (isset($sheet['print'])) {

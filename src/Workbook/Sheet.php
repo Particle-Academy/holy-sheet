@@ -46,6 +46,13 @@ final class Sheet
          * @var list<array{name:string,ref:string,headerRowCount:int}>
          */
         public readonly array $tables = [],
+        /**
+         * Data validation rules in normal form (Schema\DataValidations::normalize):
+         * column rules first, then the sheet's own list.
+         *
+         * @var list<array<string, mixed>>
+         */
+        public readonly array $dataValidations = [],
     ) {}
 
     /** @param list<array<string, mixed>> $charts */
@@ -66,6 +73,7 @@ final class Sheet
             'columnWidths' => $this->columnWidths, 'frozenRows' => $this->frozenRows, 'frozenCols' => $this->frozenCols,
             'rowHeights' => $this->rowHeights, 'print' => $this->print, 'charts' => $this->charts, 'state' => $this->state,
             'hiddenRows' => $this->hiddenRows, 'hiddenColumns' => $this->hiddenColumns, 'tables' => $this->tables,
+            'dataValidations' => $this->dataValidations,
         ], $changes));
     }
 

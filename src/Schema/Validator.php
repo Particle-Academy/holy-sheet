@@ -354,6 +354,13 @@ final class Validator
                 'A column width is a number of pixels, like 120. The sheet-level columnWidths map takes precedence over it.');
         }
 
+        // The same bound as a cell's formatCode, for the same reason: the writer
+        // emits the code verbatim, and one it cannot emit used to vanish.
+        if (array_key_exists('format', $col) && (!is_string($col['format']) || $col['format'] === '' || strlen($col['format']) > 255)) {
+            $errors[] = $this->error("{$path}.format", 'a non-empty number-format code of at most 255 bytes', $this->typeOf($col['format']), $col['format'],
+                'A custom Excel number-format code applied to every cell in the column, like "0.000" or "dd/mm/yyyy". It overrides the format the column type would give.');
+        }
+
         return $errors;
     }
 

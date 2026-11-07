@@ -174,28 +174,54 @@ it('does not read a drawing that takes an anchor from an entity', function () {
 });
 
 describe('what a consumer sees', function () {
-    it('throws for a refused workbook part, as for a malformed one', function () {
+    // A refused part used to read as an absent one, so a worksheet carrying a
+    // DOCTYPE came back as an EMPTY sheet and the caller had no way to tell that
+    // from a sheet with nothing on it. A refusal now refuses the file, as one in
+    // [Content_Types].xml always has.
+    it('refuses the file when any part it reads carries a DOCTYPE', function (string $part, string $encoding) {
         $parts = dtXlsx();
-        $parts['xl/workbook.xml'] = dtWithDoctype($parts['xl/workbook.xml']);
+        $parts[$part] = dtEncodings()[$encoding](dtWithDoctype($parts[$part]));
 
-        expect(fn () => Agent::read(dtZip($parts)))->toThrow(RuntimeException::class, 'failed to parse xl/workbook.xml');
-    });
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(UnsupportedFormatException::class, 'carries a DOCTYPE');
+    })->with([...dtMarkerParts(), 'xl/_rels/workbook.xml.rels', 'xl/worksheets/_rels/sheet1.xml.rels', 'xl/drawings/drawing1.xml', 'xl/drawings/_rels/drawing1.xml.rels'])
+        ->with(array_keys(dtEncodings()));
 
-    it('keeps the sheet, with no cells, for a refused worksheet part', function () {
+    it('refuses a worksheet with a DOCTYPE instead of reading it as an empty sheet', function () {
         $parts = dtXlsx();
         $parts['xl/worksheets/sheet1.xml'] = dtWithDoctype($parts['xl/worksheets/sheet1.xml']);
+
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(UnsupportedFormatException::class);
+    });
+
+    it('still reads a file whose optional part is missing', function () {
+        $parts = dtXlsx();
+        unset($parts['docProps/core.xml']);
+        $read = Agent::read(dtZip($parts));
+
+        expect($read['sheets'][0]['cells']['A1']['value'])->toBe(DT_MARKER)
+            ->and($read)->not->toHaveKey('meta');
+    });
+
+    it('still reads a malformed worksheet as an empty sheet, because only a refusal raises', function () {
+        $parts = dtXlsx();
+        $parts['xl/worksheets/sheet1.xml'] = '<worksheet><sheetData>';
         $sheet = Agent::read(dtZip($parts))['sheets'][0];
 
         expect($sheet['name'])->toBe('Sheet1')->and($sheet['cells'] ?? [])->toBe([]);
     });
 
-    it('reads the other parts, without the refused one, for shared strings', function () {
+    it('still throws for a malformed workbook part', function () {
         $parts = dtXlsx();
-        $parts['xl/sharedStrings.xml'] = dtWithDoctype($parts['xl/sharedStrings.xml']);
-        $cells = Agent::read(dtZip($parts))['sheets'][0]['cells'];
+        $parts['xl/workbook.xml'] = '<workbook>';
 
-        expect($cells['A1']['value'])->toBe(DT_MARKER)
-            ->and($cells['A3']['value'] ?? '')->not->toBe(DT_MARKER);
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(RuntimeException::class, 'failed to parse xl/workbook.xml');
+    });
+
+    it('reports a refused part through the catalog too', function () {
+        $parts = dtXlsx();
+        $parts['xl/worksheets/sheet1.xml'] = dtWithDoctype($parts['xl/worksheets/sheet1.xml']);
+
+        expect(Agent::catalog(dtZip($parts)))->toBe(['ok' => false, 'refused' => ['reason' => 'not_a_workbook']]);
     });
 });
 
@@ -279,12 +305,12 @@ describe('ods', function () {
         expect(substr_count($json, DT_MARKER))->toBe(2);
     });
 
-    it('throws for a refused content part', function (string $encoding) {
-        $parts = dtOds('&x;');
-        $parts['content.xml'] = dtEncodings()[$encoding](dtWithDoctype($parts['content.xml']));
+    it('refuses the file for a content, styles or meta part with a DOCTYPE', function (string $part, string $encoding) {
+        $parts = dtOds();
+        $parts[$part] = dtEncodings()[$encoding](dtWithDoctype($parts[$part]));
 
-        expect(fn () => Agent::read(dtZip($parts)))->toThrow(RuntimeException::class, 'failed to parse content.xml');
-    })->with(array_keys(dtEncodings()));
+        expect(fn () => Agent::read(dtZip($parts)))->toThrow(UnsupportedFormatException::class, 'carries a DOCTYPE');
+    })->with(['content.xml', 'styles.xml', 'meta.xml'])->with(array_keys(dtEncodings()));
 
     it('does not expand from meta', function (string $encoding) {
         $parts = dtOds();

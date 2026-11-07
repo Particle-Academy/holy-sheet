@@ -42,6 +42,19 @@ final class UnsupportedFormatException extends RuntimeException
         );
     }
 
+    /**
+     * A part other than the declaration carries a DOCTYPE. It used to read as an
+     * absent part, so a worksheet with one came back as an empty sheet, which a
+     * caller could not tell from a sheet that holds nothing.
+     */
+    public static function refusedPart(string $path = '(bytes)'): self
+    {
+        return new self(
+            "[holy-sheet] cannot read {$path}: one of its XML parts carries a DOCTYPE, which no spreadsheet part has",
+            $path,
+        );
+    }
+
     public static function unknownPackage(string $path, ?string $mimetype): self
     {
         $what = $mimetype !== null && $mimetype !== ''

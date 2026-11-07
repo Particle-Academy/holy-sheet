@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace HolySheet\Archive;
 
 use DOMDocument;
+use HolySheet\Exceptions\UnsupportedFormatException;
 use SimpleXMLElement;
 
 /**
  * The one way an XML part of an uploaded file gets parsed.
  *
  * A part carrying a DOCTYPE is refused, because no spreadsheet part has one and
- * an internal subset is the entry point for entity expansion. A refusal looks
- * exactly like malformed XML, so each caller keeps its own handling of a part
- * it cannot read.
+ * an internal subset is the entry point for entity expansion. A refusal RAISES
+ * `UnsupportedFormatException`, as one in `[Content_Types].xml` always has:
+ * failing it like malformed XML made a worksheet with a DOCTYPE read as an
+ * EMPTY sheet, which a caller cannot tell from a sheet that holds nothing.
+ * Malformed XML is not a refusal and still fails quietly (false / null), so
+ * each caller keeps its own handling of a part it cannot read.
  *
  * The check has two halves and the second is the one that holds:
  *
@@ -30,11 +34,15 @@ use SimpleXMLElement;
  */
 final class PartXml
 {
-    /** @return SimpleXMLElement|false false when malformed or refused, as `simplexml_load_string` reports malformed */
+    /**
+     * @return SimpleXMLElement|false false when malformed, as `simplexml_load_string` reports it
+     *
+     * @throws UnsupportedFormatException when the part carries a DOCTYPE
+     */
     public static function simple(string $xml): SimpleXMLElement|false
     {
         if (self::prologDeclaresDoctype($xml)) {
-            return false;
+            throw UnsupportedFormatException::refusedPart();
         }
         $prev = libxml_use_internal_errors(true);
         $element = simplexml_load_string($xml, SimpleXMLElement::class, LIBXML_NONET);
@@ -43,19 +51,32 @@ final class PartXml
         if ($element === false) {
             return false;
         }
+        if (dom_import_simplexml($element)->ownerDocument?->doctype !== null) {
+            throw UnsupportedFormatException::refusedPart();
+        }
 
-        return dom_import_simplexml($element)->ownerDocument?->doctype === null ? $element : false;
+        return $element;
     }
 
-    /** @return DOMDocument|null null when absent, empty, malformed or refused */
+    /**
+     * @return DOMDocument|null null when absent, empty or malformed
+     *
+     * @throws UnsupportedFormatException when the part carries a DOCTYPE
+     */
     public static function dom(?string $xml): ?DOMDocument
     {
-        if ($xml === null || $xml === '' || self::prologDeclaresDoctype($xml)) {
+        if ($xml === null || $xml === '') {
             return null;
         }
+        if (self::prologDeclaresDoctype($xml)) {
+            throw UnsupportedFormatException::refusedPart();
+        }
         $dom = self::parsed($xml);
+        if ($dom !== null && $dom->doctype !== null) {
+            throw UnsupportedFormatException::refusedPart();
+        }
 
-        return $dom !== null && $dom->doctype === null ? $dom : null;
+        return $dom;
     }
 
     /**

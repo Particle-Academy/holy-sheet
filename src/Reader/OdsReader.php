@@ -32,7 +32,8 @@ use SimpleXMLElement;
  *     string (paragraphs joined with "\n"), date and time as ISO strings in UTC;
  *   - formulas, translated from OpenFormula to A1 (see OdsFormula), with the
  *     cached result as `computedValue`, typed as the xlsx reader types it (a date
- *     result is its serial number);
+ *     result is its serial number, which describe() turns into the ISO date it
+ *     shows, as it does for a date-formatted xlsx formula);
  *   - repeated cells and rows, expanded only when they hold something: the
  *     million-row, 16384-column tails every producer writes to pad a sheet out
  *     are skipped, never materialised;

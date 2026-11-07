@@ -31,5 +31,11 @@ final class Workbook
          * @var list<array{name:string,ref:string}>
          */
         public readonly array $definedNames = [],
+        /**
+         * Whether the file counts its date serials from 1904-01-01
+         * (`<workbookPr date1904="1"/>`). Read only: the writer always writes
+         * the 1900 system, and describe() turns every date into an ISO string.
+         */
+        public readonly bool $date1904 = false,
     ) {}
 }

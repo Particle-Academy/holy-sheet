@@ -28,7 +28,7 @@ final class WorkbookSchema
     {
         $schema = ['sheets' => []];
         foreach ($workbook->sheets as $sheet) {
-            $schema['sheets'][] = self::sheetToSchema($sheet);
+            $schema['sheets'][] = self::sheetToSchema($sheet, $workbook->date1904);
         }
         if ($workbook->definedNames !== []) {
             $schema['definedNames'] = $workbook->definedNames;
@@ -44,11 +44,11 @@ final class WorkbookSchema
     }
 
     /** @return array<string,mixed> */
-    private static function sheetToSchema(Sheet $sheet): array
+    private static function sheetToSchema(Sheet $sheet, bool $date1904 = false): array
     {
         $cells = [];
         foreach ($sheet->cells as $address => $cell) {
-            $cellSchema = self::cellToSchema($cell);
+            $cellSchema = self::cellToSchema($cell, $date1904);
             // Drop wholly-empty cells.
             if ($cellSchema === null) continue;
             $cells[$address] = $cellSchema;
@@ -129,20 +129,20 @@ final class WorkbookSchema
     }
 
     /** @return array<string,mixed>|null */
-    private static function cellToSchema(Cell $cell): ?array
+    private static function cellToSchema(Cell $cell, bool $date1904 = false): ?array
     {
-        $value = $cell->value;
         $format = $cell->format;
 
-        // Convert serial dates back to ISO strings when the format flags it as a date.
-        if ($format !== null && in_array($format->displayFormat, ['date', 'datetime'], true)
-            && is_numeric($value)) {
-            $value = DateInverter::toIso((float) $value, $format->displayFormat === 'datetime');
-        }
+        // Convert serial dates back to ISO strings when the format flags it as a
+        // date. A formula's cached value is converted the same way: it is what
+        // the cell displays, and as a bare serial it read as a number nobody
+        // had written.
+        $value = self::dateOrValue($cell->value, $format, $date1904);
+        $cached = self::dateOrValue($cell->cachedValue, $format, $date1904);
 
         $out = ['value' => $value];
         if ($cell->formula !== null) $out['formula'] = $cell->formula;
-        if ($cell->cachedValue !== null) $out['computedValue'] = $cell->cachedValue;
+        if ($cached !== null) $out['computedValue'] = $cached;
         if ($format !== null && !$format->isEmpty()) {
             $out['format'] = self::formatToArray($format);
         }
@@ -153,6 +153,15 @@ final class WorkbookSchema
         // Strip null-only cells: { value: null } with no formula/format/comment is equivalent to absent.
         if ($out === ['value' => null]) return null;
         return $out;
+    }
+
+    private static function dateOrValue(string|int|float|bool|null $value, ?CellFormat $format, bool $date1904): string|int|float|bool|null
+    {
+        if ($format !== null && in_array($format->displayFormat, ['date', 'datetime'], true) && is_numeric($value)) {
+            return DateInverter::toIso((float) $value, $format->displayFormat === 'datetime', $date1904);
+        }
+
+        return $value;
     }
 
     /** @return array<string,mixed> */

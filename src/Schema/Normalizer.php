@@ -57,9 +57,14 @@ final class Normalizer
         $headerOffset = 0;
 
         $columnFormats = [];
+        // The type-derived format, kept only for a column whose `format` code
+        // replaced it: the code decides how a cell LOOKS, but the type still
+        // decides what its value is (a date column's strings become serials).
+        $columnCoercions = [];
         $columnByHeader = [];
         foreach ($columns as $colIdx => $columnDef) {
             $columnFormats[$colIdx] = $this->columnFormat($columnDef);
+            $columnCoercions[$colIdx] = self::columnCode($columnDef) !== null ? $this->columnTypeFormat($columnDef) : null;
             if (is_array($columnDef) && isset($columnDef['header'])) {
                 $columnByHeader[(string) $columnDef['header']] = $colIdx;
             }
@@ -80,7 +85,7 @@ final class Normalizer
                 $columnFormat = $columnFormats[$c] ?? null;
                 $rowBand = $theme->dataFormat($r);
                 $merged = $rowBand !== null ? ($columnFormat?->mergeWith($rowBand) ?? $rowBand) : $columnFormat;
-                $cells[$address] = $this->buildCell($address, $value, $merged, $name);
+                $cells[$address] = $this->buildCell($address, $value, $merged, $name, $columnCoercions[$c] ?? null);
             }
         }
 
@@ -365,10 +370,28 @@ final class Normalizer
                 formula: $cellData['formula'] ?? null,
                 format: $format,
                 comment: $comment,
-                cachedValue: $cellData['computedValue'] ?? null,
+                cachedValue: $this->coerceCached($cellData['computedValue'] ?? null, $format),
             );
         }
         return $cells;
+    }
+
+    /**
+     * A formula's cached value, under the cell's format. describe() reads the
+     * cached value of a date-formatted formula as the ISO date it displays, so
+     * writing that output back must turn it into the serial again: written as
+     * text, `<v>2026-11-08</v>` is no number at all in a numeric cell. This is
+     * the conversion `coerceValue` gives a date cell's own value.
+     */
+    private function coerceCached(mixed $cached, ?CellFormat $format): mixed
+    {
+        $df = $format?->displayFormat;
+        if (($df === 'date' || $df === 'datetime')
+            && ($cached instanceof DateTimeInterface || (is_string($cached) && trim($cached) !== ''))) {
+            return DateConverter::toSerial($cached, $df === 'datetime');
+        }
+
+        return $cached;
     }
 
     private function normalizeMerges(array $list): array
@@ -437,8 +460,38 @@ final class Normalizer
         return $out;
     }
 
-    /** @param  array<string,mixed>|string  $columnDef */
+    /**
+     * The format every cell in a column starts from. A `format` code replaces
+     * the type-derived one, as the schema documents ("Overrides type-derived
+     * format"); it is carried as `formatCode` with no displayFormat, which is
+     * exactly how a foreign code read from a file is carried, so the writer
+     * emits it as a custom numFmt verbatim. Until 2026-11-07 the field was
+     * advertised and ignored.
+     *
+     * @param  array<string,mixed>|string  $columnDef
+     */
     private function columnFormat(array|string $columnDef): ?CellFormat
+    {
+        $code = self::columnCode($columnDef);
+
+        return $code !== null ? new CellFormat(formatCode: $code) : $this->columnTypeFormat($columnDef);
+    }
+
+    /**
+     * A column's `format` code, when it is one the writer can emit: a non-empty
+     * string of at most 255 bytes, the bound Validator holds it to.
+     *
+     * @param  array<string,mixed>|string  $columnDef
+     */
+    public static function columnCode(array|string $columnDef): ?string
+    {
+        $code = is_array($columnDef) ? ($columnDef['format'] ?? null) : null;
+
+        return is_string($code) && $code !== '' && strlen($code) <= 255 ? $code : null;
+    }
+
+    /** @param  array<string,mixed>|string  $columnDef */
+    private function columnTypeFormat(array|string $columnDef): ?CellFormat
     {
         if (is_string($columnDef)) return null;
         $type = $columnDef['type'] ?? 'auto';
@@ -456,13 +509,18 @@ final class Normalizer
         };
     }
 
-    private function buildCell(string $address, mixed $value, ?CellFormat $columnFormat, ?string $sheetName = null): Cell
+    /**
+     * @param  ?CellFormat  $coerceAs  the column's type-derived format when a
+     *   `format` code replaced it on the cell, so the type still coerces the value
+     */
+    private function buildCell(string $address, mixed $value, ?CellFormat $columnFormat, ?string $sheetName = null, ?CellFormat $coerceAs = null): Cell
     {
         if (is_array($value) && !array_is_list($value)) {
             $cellFormat = isset($value['format']) && is_array($value['format'])
                 ? CellFormat::fromArray($value['format'])
                 : null;
             $merged = $columnFormat ? $columnFormat->mergeWith($cellFormat) : $cellFormat;
+            $coerceFormat = $coerceAs !== null ? $coerceAs->mergeWith($cellFormat) : $merged;
             $comment = isset($value['comment']) && is_array($value['comment'])
                 ? new CellComment(
                     text: (string) ($value['comment']['text'] ?? ''),
@@ -473,11 +531,11 @@ final class Normalizer
             $rawValue = $value['value'] ?? null;
             return new Cell(
                 address: $address,
-                value: $this->coerceValue($rawValue, $merged, $address, $sheetName, explicit: true),
+                value: $this->coerceValue($rawValue, $coerceFormat, $address, $sheetName, explicit: true),
                 formula: $value['formula'] ?? null,
                 format: $merged,
                 comment: $comment,
-                cachedValue: $value['computedValue'] ?? null,
+                cachedValue: $this->coerceCached($value['computedValue'] ?? null, $coerceFormat),
             );
         }
 
@@ -485,7 +543,7 @@ final class Normalizer
 
         return new Cell(
             address: $address,
-            value: $formula !== null ? null : $this->coerceValue($value, $columnFormat, $address, $sheetName),
+            value: $formula !== null ? null : $this->coerceValue($value, $coerceAs ?? $columnFormat, $address, $sheetName),
             formula: $formula,
             format: $columnFormat,
         );

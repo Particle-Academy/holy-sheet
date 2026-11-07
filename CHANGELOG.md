@@ -4,6 +4,60 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.11.5] - 2026-11-07
+
+### Security
+
+- **A `DOCTYPE` in any XML part now refuses the file, instead of reading as an
+  empty part.** 2.11.4 stopped such a part from being expanded but read it as
+  absent, so a worksheet carrying one came back as an EMPTY sheet, which a
+  caller cannot tell from a sheet that holds nothing. Reading, describing or
+  converting a file with a `DOCTYPE` in any part now throws
+  `UnsupportedFormatException` (a `RuntimeException`), as one in
+  `[Content_Types].xml` already did; `catalog` and `extract` report
+  `not_a_workbook`. A part that is missing is still just absent, and a part that
+  is merely malformed is handled exactly as before.
+  **What to do:** nothing for real spreadsheets, which carry no `DOCTYPE`. If you
+  read files you did not write and catch `RuntimeException` around a read, you
+  already handle this; if you relied on such a file reading with empty sheets,
+  it is now refused.
+
+### Fixed
+
+- **Workbooks in the 1904 date system read every date four years early.** The
+  reader ignored `<workbookPr date1904="1"/>` and counted every serial from
+  1899-12-30, so a date in such a file (older Mac Excel saves) came back 1462
+  days too early. It now uses the 1904-01-01 epoch for that workbook.
+  **What to do:** nothing. Dates in 1904-system files now read correctly; files
+  in the default 1900 system read exactly as before. Writing one back produces
+  the same dates in the 1900 system.
+- **A rich inline string read as null.** A cell holding `<is><r><t>..</t></r></is>`
+  (runs, as some producers write formatted text) lost its text. Its runs are now
+  joined, exactly as a rich shared string's already were.
+  **What to do:** nothing. Those cells now have their text.
+- **BEHAVIOUR CHANGE: the cached value of a date-formatted formula is now an ISO
+  string.** `computedValue` came back as the raw serial (`46334`) while the
+  cell's own `value` was converted, so a date formula read as a number nobody
+  wrote. It is now converted like `value`: `"2026-11-08"` for a date format,
+  `"2026-11-08T06:00:00Z"` for a datetime one, in both xlsx and ods. Writing
+  that output back turns it into the serial again, so describe() round-trips.
+  Because the exchange layer reads the same output, `extract` now reports such a
+  cell as a date rather than a number.
+  **What to do:** if your code reads `computedValue` of a date-formatted formula
+  as a number, read it as an ISO date string instead (parse it, or check
+  `is_numeric()` first if you must handle both). Formulas that are not
+  date-formatted are unchanged.
+- **A column's `format` code was ignored.** The schema has documented
+  `columns[].format`, a custom Excel number-format string that overrides the
+  type-derived format, but the normalizer never read it. It is now written as a
+  custom number format and applied to every cell in the column, including the
+  totals row; the column `type` still decides the value (a `date` column's
+  strings still become dates). A cell that sets its own `displayFormat` still
+  wins. `validate` now reports a `format` that cannot be written (not a string,
+  empty, or longer than 255 bytes) at `sheets[i].columns[j].format`.
+  **What to do:** nothing, unless you set `format` on a column and relied on it
+  having no effect. Remove it to keep the type-derived format.
+
 ## [2.11.4] - 2026-11-04
 
 ### Security

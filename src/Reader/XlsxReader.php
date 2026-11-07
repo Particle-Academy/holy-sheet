@@ -148,7 +148,13 @@ final class XlsxReader
 
         $meta = $this->parseDocProps($zip);
 
-        return new Workbook($sheets, $meta, $sourceKind, self::parseDefinedNames($sheetsXml));
+        return new Workbook($sheets, $meta, $sourceKind, self::parseDefinedNames($sheetsXml), self::usesDate1904($sheetsXml));
+    }
+
+    /** Whether the workbook counts dates from 1904-01-01: `<workbookPr date1904="1"/>` (or "true"). */
+    private static function usesDate1904(SimpleXMLElement $workbook): bool
+    {
+        return isset($workbook->workbookPr) && in_array((string) $workbook->workbookPr['date1904'], ['1', 'true'], true);
     }
 
     /**

@@ -33,7 +33,11 @@ final class SharedStringsParser
         return $out;
     }
 
-    private static function renderSi(SimpleXMLElement $si): string
+    /**
+     * One string item's text: its `<t>`, or its `<r><t>` runs joined. Also how
+     * a cell's inline `<is>` is read, which has the same content model.
+     */
+    public static function renderSi(SimpleXMLElement $si): string
     {
         if (isset($si->t)) {
             return (string) $si->t;

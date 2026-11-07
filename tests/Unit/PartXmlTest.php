@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use HolySheet\Archive\PartXml;
+use HolySheet\Exceptions\UnsupportedFormatException;
 
 const PX_DOCTYPE = '<!DOCTYPE r [<!ENTITY x "HSINT">]>';
 
@@ -59,11 +60,16 @@ describe('the gate', function () {
             ->and((string) PartXml::dom('<r a="1"/>')?->documentElement?->getAttribute('a'))->toBe('1');
     });
 
-    it('fails malformed XML the way it fails a DOCTYPE', function () {
+    it('fails malformed XML quietly, so each caller keeps its handling of a part it cannot read', function () {
         expect(PartXml::simple('<r>'))->toBeFalse()
             ->and(PartXml::dom('<r>'))->toBeNull()
-            ->and(PartXml::simple(PX_DOCTYPE.'<r/>'))->toBeFalse()
-            ->and(PartXml::dom(PX_DOCTYPE.'<r/>'))->toBeNull();
+            ->and(PartXml::dom(null))->toBeNull()
+            ->and(PartXml::dom(''))->toBeNull();
+    });
+
+    it('raises for a DOCTYPE rather than failing it like malformed XML', function () {
+        expect(fn () => PartXml::simple(PX_DOCTYPE.'<r/>'))->toThrow(UnsupportedFormatException::class, 'carries a DOCTYPE')
+            ->and(fn () => PartXml::dom(PX_DOCTYPE.'<r/>'))->toThrow(UnsupportedFormatException::class, 'carries a DOCTYPE');
     });
 
     it('refuses a DOCTYPE the prolog check cannot read, by asking the parser', function () {
@@ -74,14 +80,18 @@ describe('the gate', function () {
         }
 
         expect(PartXml::prologDeclaresDoctype($utf7))->toBeFalse()
-            ->and(PartXml::simple($utf7))->toBeFalse()
-            ->and(PartXml::dom($utf7))->toBeNull();
+            ->and(fn () => PartXml::simple($utf7))->toThrow(UnsupportedFormatException::class)
+            ->and(fn () => PartXml::dom($utf7))->toThrow(UnsupportedFormatException::class);
     });
 
     it('leaves the caller\'s libxml error handling as it found it', function () {
         $before = libxml_use_internal_errors(false);
         PartXml::simple('<r>');
         PartXml::dom('<r>');
+        try {
+            PartXml::simple('<?xml version="1.0"?>'.PX_DOCTYPE.'<r>&x;</r>');
+        } catch (UnsupportedFormatException) {
+        }
         $after = libxml_use_internal_errors($before);
 
         expect($after)->toBeFalse();

@@ -100,9 +100,13 @@ the PARTS, never the zip.
 
 **Every XML part is parsed through `Archive\PartXml`, which refuses a `DOCTYPE`.**
 A spreadsheet part never legitimately carries one, and an internal DTD subset is
-the entry point for entity expansion. A refusal looks like malformed XML, so each
-caller keeps its own handling of a part it cannot read. A test fails if `src/`
-parses XML anywhere else.
+the entry point for entity expansion. **A refusal raises
+`UnsupportedFormatException`** (`refusedPart()`), from any part. Until 2.11.5 it
+looked like malformed XML instead, so a worksheet with a DOCTYPE read as an
+EMPTY sheet and the caller could not tell. Malformed XML is not a refusal and
+still fails quietly (`false` / `null`), so each caller keeps its own handling of
+a part it cannot parse, and a missing part is still just absent. A test fails if
+`src/` parses XML anywhere else.
 
 Don't replace the check with a search of the bytes for `<!DOCTYPE`. That search
 does not see every way a part can be encoded, and it refuses a real cell whose
@@ -110,10 +114,21 @@ CDATA holds an HTML page. `prologDeclaresDoctype()` reads only the prolog, and t
 parsed document's own `doctype` is what decides. `DoctypeRefusalTest` and
 `PartXmlTest` hold the cases.
 
-**`[Content_Types].xml` is the exception to "a refusal looks like malformed".**
-Declarations decide which other refusals apply, so a `DOCTYPE` there refuses the
-whole package with `UnsupportedFormatException` rather than reading as a package
-that declares nothing.
+**`[Content_Types].xml` is checked before anything else is read.** Declarations
+decide which other refusals apply, so a `DOCTYPE` there refuses the whole package
+(`refusedDeclaration()`) rather than reading as a package that declares nothing.
+
+**Dates follow the workbook's date system.** `<workbookPr date1904="1"/>` (or
+`"true"`) moves the epoch from 1899-12-30 to 1904-01-01; `Workbook::$date1904`
+carries it to `WorkbookSchema`, which converts a date-formatted cell's value AND
+its formula's cached value (`computedValue`) to ISO strings. The writer always
+writes the 1900 system, and `Normalizer` turns an ISO `computedValue` on a date
+cell back into a serial, so describe() output round-trips.
+
+**A column's `format` code is carried as `formatCode` with no displayFormat**,
+the same shape as a foreign code read from a file, so `StylesRegistry` emits it
+verbatim. The column type still coerces the value (a `date` column's strings
+become serials) through the type-derived format `Normalizer` keeps beside it.
 
 ## The formula linter (`Schema\FormulaLinter`)
 

@@ -221,8 +221,10 @@ final class WorksheetParser
                 if (isset($c->f)) {
                     $formula = (string) $c->f;
                     $cachedValue = isset($c->v) ? self::coerceValue((string) $c->v, $type) : null;
-                } elseif ($type === 'inlineStr' && isset($c->is) && isset($c->is->t)) {
-                    $value = (string) $c->is->t;
+                } elseif ($type === 'inlineStr' && isset($c->is) && (isset($c->is->t) || isset($c->is->r))) {
+                    // A rich inline string holds runs, not one <t>; it read as
+                    // null until the runs were joined as a shared string's are.
+                    $value = SharedStringsParser::renderSi($c->is);
                 } elseif ($type === 's' && isset($c->v)) {
                     $idx = (int) (string) $c->v;
                     $value = $sharedStrings[$idx] ?? '';

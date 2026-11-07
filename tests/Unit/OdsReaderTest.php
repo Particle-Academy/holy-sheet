@@ -353,7 +353,8 @@ it('rounds half a second up, applies offsets, and lets the cell currency beat th
         'J1' => ['value' => 7, 'format' => ['displayFormat' => 'currency', 'decimals' => 2, 'currency' => 'EUR']],
         // An unparseable date is not guessed at.
         'K1' => ['value' => null, 'format' => ['displayFormat' => 'date']],
-        'L1' => ['value' => null, 'formula' => 'A1', 'computedValue' => 1.25, 'format' => ['displayFormat' => 'datetime']],
+        // A date-formatted formula's cached value describes as the date it shows.
+        'L1' => ['value' => null, 'formula' => 'A1', 'computedValue' => '1899-12-31T06:00:00Z', 'format' => ['displayFormat' => 'datetime']],
     ])
         // No initial-creator: dc:creator. A creation date with a zone keeps it.
         ->and($schema['meta'])->toBe(['creator' => 'Edge Author', 'created' => '2026-01-02T03:04:05.123+01:00']);
@@ -418,10 +419,11 @@ it('reports a formula result of every type as the xlsx reader would cache it', f
     )['sheets'][0]['cells'];
 
     // A date result is cached as the serial number, as in an xlsx <v>, and the
-    // value type says it is a date even with no data style on the cell.
-    expect($cells['A1'])->toBe(['value' => null, 'formula' => 'DATE(2024,3,15)', 'computedValue' => 45366, 'format' => ['displayFormat' => 'date']])
-        ->and($cells['B1'])->toBe(['value' => null, 'formula' => 'A1+0.5', 'computedValue' => 45366.5, 'format' => ['displayFormat' => 'datetime']])
-        ->and($cells['C1'])->toBe(['value' => null, 'formula' => 'TIME(6,0,0)', 'computedValue' => 0.25, 'format' => ['displayFormat' => 'datetime']])
+    // value type says it is a date even with no data style on the cell. Like an
+    // xlsx date formula's, it then describes as the ISO date it shows.
+    expect($cells['A1'])->toBe(['value' => null, 'formula' => 'DATE(2024,3,15)', 'computedValue' => '2024-03-15', 'format' => ['displayFormat' => 'date']])
+        ->and($cells['B1'])->toBe(['value' => null, 'formula' => 'A1+0.5', 'computedValue' => '2024-03-15T12:00:00Z', 'format' => ['displayFormat' => 'datetime']])
+        ->and($cells['C1'])->toBe(['value' => null, 'formula' => 'TIME(6,0,0)', 'computedValue' => '1899-12-30T06:00:00Z', 'format' => ['displayFormat' => 'datetime']])
         // Only a bare TRUE()/FALSE() is a boolean literal; any other boolean formula stays a formula.
         ->and($cells['D1'])->toBe(['value' => null, 'formula' => '1=1', 'computedValue' => true])
         ->and($cells['E1'])->toBe(['value' => null, 'formula' => '"a"', 'computedValue' => 'a']);

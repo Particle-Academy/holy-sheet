@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace HolySheet\Reader;
 
+use HolySheet\Archive\SourceArchive;
 use HolySheet\Exceptions\ArchiveRefused;
 use HolySheet\Exceptions\ReadLimitExceeded;
+use HolySheet\Archive\PartXml;
 use HolySheet\Workbook\CellAddress;
-use SimpleXMLElement;
 
 /**
  * How big a spreadsheet a read will expand, beyond the archive guard's byte
@@ -26,9 +27,13 @@ use SimpleXMLElement;
  * one string is rendered, an ODS repeat before it is expanded. A refusal is a
  * `ReadLimitExceeded` naming the limit, its value and the count.
  *
- * Configured like the archive limits: positive integers keyed by name, and an
- * unknown key or any other value refuses with `ArchiveRefused('read_limits')`.
- * The defaults and their measurements are in the 2.13.0 CHANGELOG entry.
+ * Since 2.14.0 the same `limits` option also carries the archive guard's five
+ * limits (ARCHIVE_DEFAULTS), so every limit a read enforces is one setting:
+ * positive integers keyed by name. An unknown key or a bad read limit refuses
+ * with `ArchiveRefused('read_limits')`, a bad archive limit with
+ * `ArchiveRefused('archive_limits')`, each naming the setting. The read
+ * defaults and their measurements are in the 2.13.0 CHANGELOG entry; the
+ * measured ceilings per port are in the README's "Large workbooks".
  *
  * @internal one instance per read; it carries the running cell count
  */
@@ -41,29 +46,59 @@ final class ReadLimits
         'maxSharedStrings' => 20000000,
     ];
 
+    /**
+     * The archive guard's limits, which the same `limits` option sets (since
+     * 2.14.0): `maxArchiveBytes`, `maxEntries`, `maxPartBytes`,
+     * `maxExpandedBytes`, `maxCompressionRatio`.
+     */
+    public const ARCHIVE_DEFAULTS = SourceArchive::DEFAULTS;
+
     private int $cells = 0;
 
     /** @var array<string,int> column letters => index, bounded so a hostile part cannot grow it */
     private array $letterCache = [];
 
-    /** @param  array<string,int>  $limits */
-    private function __construct(private readonly array $limits) {}
+    /**
+     * @param  array<string,int>  $limits
+     * @param  array<string,int>  $archive
+     */
+    private function __construct(private readonly array $limits, private readonly array $archive) {}
 
-    /** @param  array<mixed>  $limits */
+    /**
+     * Any of the nine limits, by name. A read limit that is not a positive
+     * integer, or a name that is no limit, is `ArchiveRefused('read_limits')`;
+     * a bad archive limit is `ArchiveRefused('archive_limits')`. The message
+     * names the setting. Every key is checked before anything is opened.
+     *
+     * @param  array<mixed>  $limits
+     */
     public static function from(array $limits = []): self
     {
+        $read = $archive = [];
         foreach ($limits as $key => $value) {
-            if (! array_key_exists($key, self::DEFAULTS) || ! is_int($value) || $value < 1) {
-                throw new ArchiveRefused('read_limits');
+            if (array_key_exists($key, self::ARCHIVE_DEFAULTS)) {
+                $archive[$key] = $value;
+
+                continue;
             }
+            if (! array_key_exists($key, self::DEFAULTS) || ! is_int($value) || $value < 1) {
+                throw ArchiveRefused::badSetting('read_limits', $key, array_key_exists($key, self::DEFAULTS));
+            }
+            $read[$key] = $value;
         }
 
-        return new self($limits + self::DEFAULTS);
+        return new self($read + self::DEFAULTS, SourceArchive::resolveLimits($archive));
     }
 
     public function max(string $limit): int
     {
-        return $this->limits[$limit];
+        return $this->limits[$limit] ?? $this->archive[$limit];
+    }
+
+    /** @return array<string,int> the archive limits, resolved over their defaults */
+    public function archive(): array
+    {
+        return $this->archive;
     }
 
     public function sharedStrings(int $count): void
@@ -81,54 +116,105 @@ final class ReadLimits
     }
 
     /**
-     * Count a parsed worksheet: the highest row a `<row r>` or a cell uses, the
-     * highest column a cell or a `<col max>` uses, and every `<c>` element.
-     * Nothing is built; this walks what PartXml already parsed.
+     * Count a worksheet part BEFORE it is parsed: the highest row a `<row r>`
+     * or a cell uses, the highest column a cell or a `<col max>` uses, and
+     * every `<c>` element. It streams the part (PartXml::stream), so it holds
+     * nothing: until 2.14.0 this walked the parsed tree, and by then the tree
+     * was built, so a limit could refuse a 10,000,000-cell sheet only after
+     * libxml had spent gigabytes on it (and PHP's memory_limit, which does not
+     * see libxml's allocations, never stopped it).
+     *
+     * It matches what the parse reads: the first unprefixed `cols` and
+     * `sheetData` under the root, their unprefixed `col` / `row` children, and
+     * a row's unprefixed `c` children, as SimpleXML property access does. A
+     * part that turns out malformed is counted up to the error, so a limit
+     * still refuses it.
      */
-    public function worksheet(SimpleXMLElement $xml): void
+    public function worksheetPart(string $xml): void
     {
         $rows = $columns = $cells = 0;
-        if (isset($xml->cols) && $xml->cols->col) {
-            foreach ($xml->cols->col as $col) {
-                $columns = max($columns, self::number((string) $col['max']));
-            }
-        }
-        if (isset($xml->sheetData) && $xml->sheetData->row) {
-            foreach ($xml->sheetData->row as $row) {
-                $rows = max($rows, self::number((string) $row['r']));
-                if (! $row->c) {
-                    continue;
+        $seenCols = $seenSheetData = false;
+        $in = null;      // 'cols' | 'sheetData' | null: the depth-1 element we are inside
+        $inRow = false;
+        PartXml::stream($xml, 3, function (\XMLReader $r) use (&$rows, &$columns, &$cells, &$seenCols, &$seenSheetData, &$in, &$inRow): void {
+            $depth = $r->depth;
+            $mine = $r->prefix === '';
+            $name = $r->localName;
+            if ($depth === 1) {
+                $in = null;
+                if ($mine && $name === 'cols' && ! $seenCols) {
+                    [$in, $seenCols] = ['cols', true];
+                } elseif ($mine && $name === 'sheetData' && ! $seenSheetData) {
+                    [$in, $seenSheetData] = ['sheetData', true];
                 }
-                foreach ($row->c as $c) {
-                    $cells++;
-                    $r = (string) $c['r'];
-                    // Fast path for the canonical form every writer emits; the
-                    // same answer address() gives, without a regex per cell.
-                    $n = strspn($r, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
-                    $d = strspn($r, '0123456789', $n);
-                    if ($n >= 1 && $n <= 7 && $d >= 1 && $d <= 15 && $n + $d === strlen($r)) {
-                        $letters = substr($r, 0, $n);
-                        $col = $this->letterCache[$letters] ?? null;
-                        if ($col === null) {
-                            $col = CellAddress::index($letters);
-                            if (count($this->letterCache) < 20000) {
-                                $this->letterCache[$letters] = $col;
-                            }
-                        }
-                        $columns = max($columns, $col + 1);
-                        $rows = max($rows, (int) substr($r, $n));
 
-                        continue;
-                    }
-                    $at = self::address($r);
-                    if ($at !== null) {
-                        $columns = max($columns, $at[0] + 1);
-                        $rows = max($rows, $at[1]);
-                    }
+                return;
+            }
+            if ($depth === 2) {
+                $inRow = false;
+                if ($in === 'cols' && $mine && $name === 'col') {
+                    $columns = max($columns, self::number((string) $r->getAttribute('max')));
+                } elseif ($in === 'sheetData' && $mine && $name === 'row') {
+                    $rows = max($rows, self::number((string) $r->getAttribute('r')));
+                    $inRow = true;
+                }
+
+                return;
+            }
+            if ($depth === 3 && $inRow && $mine && $name === 'c') {
+                // Refused the moment the workbook passes maxCells, rather than
+                // after streaming the rest: the message already says "at least".
+                if (++$cells + $this->cells > $this->limits['maxCells']) {
+                    throw new ReadLimitExceeded('maxCells', $this->limits['maxCells'], $cells + $this->cells);
+                }
+                [$columns, $rows] = $this->cellExtent((string) $r->getAttribute('r'), $columns, $rows);
+            }
+        });
+        $this->sheet($rows, $columns, $cells);
+    }
+
+    /**
+     * Count a shared-strings part BEFORE it is parsed: its root's unprefixed
+     * `si` children, streamed, so a table too big to parse is refused without
+     * being parsed. A malformed part is counted up to the error.
+     */
+    public function sharedStringsPart(string $xml): void
+    {
+        $count = 0;
+        PartXml::stream($xml, 1, function (\XMLReader $r) use (&$count): void {
+            if ($r->depth === 1 && $r->prefix === '' && $r->localName === 'si') {
+                $count++;
+            }
+        });
+        $this->sharedStrings($count);
+    }
+
+    /**
+     * The extent one cell address adds: `[columns, rows]` after it.
+     *
+     * @return array{0:int,1:int}
+     */
+    private function cellExtent(string $r, int $columns, int $rows): array
+    {
+        // Fast path for the canonical form every writer emits; the same answer
+        // address() gives, without a regex per cell.
+        $n = strspn($r, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+        $d = strspn($r, '0123456789', $n);
+        if ($n >= 1 && $n <= 7 && $d >= 1 && $d <= 15 && $n + $d === strlen($r)) {
+            $letters = substr($r, 0, $n);
+            $col = $this->letterCache[$letters] ?? null;
+            if ($col === null) {
+                $col = CellAddress::index($letters);
+                if (count($this->letterCache) < 20000) {
+                    $this->letterCache[$letters] = $col;
                 }
             }
+
+            return [max($columns, $col + 1), max($rows, (int) substr($r, $n))];
         }
-        $this->sheet($rows, $columns, $cells);
+        $at = self::address($r);
+
+        return $at === null ? [$columns, $rows] : [max($columns, $at[0] + 1), max($rows, $at[1])];
     }
 
     /**

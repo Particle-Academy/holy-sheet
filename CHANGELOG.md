@@ -4,6 +4,84 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-11-07
+
+Owner decision, 2026-11-07: "all limitations need to be a config option so apps
+can build to their use case." Every default stays where it was; what changes is
+that an app can now set every limit a read enforces. The JavaScript and Python
+packages ship the same names, defaults, refusals and messages; the cases all
+three pass are in `tests/fixtures/read-options/cases.json`.
+
+### Added
+
+- **Every limit is configurable.** `read()` / `describe()`'s `limits` option
+  now takes the archive guard's five limits beside the four read limits, so
+  every refusal a read can make is one setting: `maxArchiveBytes`,
+  `maxEntries`, `maxPartBytes`, `maxExpandedBytes`, `maxCompressionRatio`,
+  `maxRows`, `maxColumns`, `maxCells`, `maxSharedStrings`. Until now the
+  archive limits could not be reached through any public method, so a sheet
+  part over 64 MiB (about 120,000 rows of 10 columns) could not be read at all.
+  `ReadLimits::ARCHIVE_DEFAULTS` holds their defaults.
+  **What to do:** nothing; every default is unchanged. To read a large export,
+  raise the limits it needs; the README's "Large workbooks" section has the
+  measured memory and time per row, and the settings for one.
+- **Laravel: `holy-sheet.limits` and `holy-sheet.query_limit` config.** The
+  package config now lists all nine limits at their defaults (no `env()`), and
+  `fromQuery()`'s row cap (5,000). The facade and the container apply them to
+  every `read()`, `describe()`, `rows()` (its `maxCells`) and `fromQuery()`; a
+  call's own options override them key by key. A bad value refuses when
+  `HolySheet` is first resolved, naming the setting. `HolySheet` gains
+  `read()`, and its constructor takes the same limits for non-Laravel use.
+  **What to do:** nothing. To change a limit app-wide, publish the config
+  (`php artisan vendor:publish --tag=holy-sheet-config`) and edit it.
+- **A refusal over a limit says which one.** `ArchiveRefused` now carries
+  `limit`, `max` and `actual` (null for refusals that are not about a limit),
+  and an `archive_limit` message names them: `Source archive refused:
+  archive_limit (maxPartBytes is 67,108,864; this file needs at least
+  275,497,997)`. Before, all five archive limits read as a bare
+  `archive_limit`, so nobody could tell which one to raise.
+
+### Changed
+
+- **The read limits are now counted BEFORE the part is parsed, not after.**
+  Measured on this release: libxml builds a worksheet's whole tree before any
+  count could run, so with `maxPartBytes` raised, a 500,000-row upload grew to
+  6.1 GB before `maxCells` could refuse it. PHP's `memory_limit` does not stop
+  that either, because libxml's allocations are not counted against it: the
+  same read under `memory_limit=512M` still reached 6.1 GB, and the 1,000,000-
+  row one passed 12 GB under `memory_limit=1G`. Rows, columns and cells are now
+  counted by streaming the part through `XMLReader` (no tree), and the cell
+  count refuses the moment the workbook passes `maxCells`; shared strings are
+  counted the same way. Measured peak at refusal, 500,000 rows x 10 columns
+  (a 275,497,997-byte sheet part), `memory_limit=512M`:
+  - at the **defaults**: refused by `maxPartBytes`, from the zip's central
+    directory before anything is inflated, in 0.03 s at a **40 MiB** process
+    peak;
+  - with the part limits raised and `maxCells` at 1,000,000: refused by
+    `maxCells` in 2.5 s at **817 MiB** (the inflated part is most of it), not
+    6.1 GB.
+  A worksheet or shared-strings part cut off mid-document is counted up to the
+  cut, so a truncated part over a limit is now refused; before, it parsed as
+  malformed and read as empty, unseen by any limit.
+  **What to do:** nothing. Reads that succeeded still succeed with the same
+  result; the stream replaces the old walk of the parsed tree, and measured
+  0 to 5% more time on a full read (5,000,000 cells: 54.0 s against 51.5 s).
+- **A bad limit setting names itself.** `read_limits (maxRows must be a
+  positive integer)`, `archive_limits (maxPartBytes must be a positive
+  integer)`, `read_limits (unknown limit "maxBogus")`. The reasons are the
+  same as before. **What to do:** nothing, unless you compare `getMessage()`
+  exactly; compare `reason` instead.
+- **`describe($path)` opens the file once.** It opened and inflated the whole
+  archive to sniff its format, then opened it again to read it.
+- `ReadLimitExceeded`'s `limit`, `max` and `actual` are now declared on
+  `ArchiveRefused`, typed nullable there. **What to do:** nothing; they are
+  set on every `ReadLimitExceeded` as before.
+
+### Removed
+
+- `ReadLimits::worksheet(SimpleXMLElement)`, replaced by `worksheetPart(string)`.
+  The class is `@internal`. **What to do:** nothing, unless you called it.
+
 ## [2.13.0] - 2026-11-07
 
 Approved in the change council as CC-fancy-0012 and CC-fancy-0013 (owner, plus

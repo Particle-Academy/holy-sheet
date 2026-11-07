@@ -26,11 +26,12 @@ final class SharedStringsParser
      */
     public static function parse(string $xml, ?ReadLimits $limits = null): array
     {
+        // Counted while streaming, before the parse builds the table's tree.
+        $limits?->sharedStringsPart($xml);
         $doc = PartXml::simple($xml);
         if ($doc === false) {
             return [];
         }
-        $limits?->sharedStrings($doc->si->count());
 
         $out = [];
         foreach ($doc->si as $si) {

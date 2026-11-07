@@ -80,6 +80,65 @@ final class PartXml
     }
 
     /**
+     * Stream a part's elements without building a tree: `$visit($reader)` is
+     * called for every element down to `$maxDepth` (the root is depth 0), with
+     * the reader positioned on it, and an element AT `$maxDepth` has its
+     * subtree skipped unread. Nothing is kept, so memory does not grow with the
+     * part. This is how a read counts what a part holds BEFORE the parse that
+     * would hold all of it: a 275 MB worksheet parses into a tree of about 6 GB.
+     *
+     * A DOCTYPE refuses, as everywhere else. Returns false when the part is
+     * malformed: the elements up to the error were visited, which is what lets
+     * a limit refuse a part the parser would only call malformed after
+     * building most of it.
+     *
+     * @param  callable(\XMLReader):void  $visit
+     *
+     * @throws UnsupportedFormatException when the part carries a DOCTYPE
+     */
+    public static function stream(string $xml, int $maxDepth, callable $visit): bool
+    {
+        if ($xml === '') {
+            return false;
+        }
+        if (self::prologDeclaresDoctype($xml)) {
+            throw UnsupportedFormatException::refusedPart();
+        }
+        $prev = libxml_use_internal_errors(true);
+        libxml_clear_errors();
+        $reader = new \XMLReader();
+        try {
+            if (! $reader->XML($xml, null, LIBXML_NONET)) {
+                return false;
+            }
+            $ok = $reader->read();
+            while ($ok) {
+                if ($reader->nodeType === \XMLReader::DOC_TYPE) {
+                    throw UnsupportedFormatException::refusedPart();
+                }
+                if ($reader->nodeType === \XMLReader::ELEMENT) {
+                    $depth = $reader->depth;
+                    if ($depth <= $maxDepth) {
+                        $visit($reader);
+                    }
+                    if ($depth >= $maxDepth && ! $reader->isEmptyElement) {
+                        $ok = $reader->next();
+
+                        continue;
+                    }
+                }
+                $ok = $reader->read();
+            }
+
+            return libxml_get_last_error() === false;
+        } finally {
+            $reader->close();
+            libxml_clear_errors();
+            libxml_use_internal_errors($prev);
+        }
+    }
+
+    /**
      * Whether a part carries a DOCTYPE, for the one caller that must tell that
      * from malformed: a package's own declaration, where the difference decides
      * whether the package is read at all.

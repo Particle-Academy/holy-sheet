@@ -186,10 +186,121 @@ try {
 
 `ReadLimitExceeded` extends `ArchiveRefused` (reason `read_limit`), so code that
 already catches the archive guard keeps working. The archive guard's byte limits
-still apply first, and they are the tighter bound today: a single worksheet part
-over 64 MiB is refused (`archive_limit`), which a sheet of 10 mixed columns
-reaches at about 120,000 rows. The JavaScript and Python packages take the same
-options and refuse with the same reasons and messages.
+apply first: at the defaults a single worksheet part over 64 MiB is refused
+(`archive_limit`, `limit` `maxPartBytes`), which a sheet of 10 mixed columns
+reaches at about 120,000 rows. Since 2.14 those are set through the same
+`limits` option; see [Large workbooks](#large-workbooks). The JavaScript and
+Python packages take the same options and refuse with the same reasons and
+messages.
+
+## Large workbooks
+
+Every limit a read enforces is a setting (2.14+). The defaults are safe for
+reading uploads; raise them deliberately for big files you trust, because the
+real cost of a read is memory.
+
+| Limit | Default | Bounds |
+|---|---|---|
+| `maxArchiveBytes` | 67,108,864 (64 MiB) | the file |
+| `maxEntries` | 16,384 | members in the zip |
+| `maxPartBytes` | 67,108,864 (64 MiB) | one part, uncompressed |
+| `maxExpandedBytes` | 268,435,456 (256 MiB) | every part together, uncompressed |
+| `maxCompressionRatio` | 1,000 | one part's size over its compressed size |
+| `maxRows` | 1,048,576 | per sheet (Excel's own limit) |
+| `maxColumns` | 16,384 | per sheet (Excel's own limit) |
+| `maxCells` | 20,000,000 | the workbook |
+| `maxSharedStrings` | 20,000,000 | the shared-strings table |
+
+```php
+// One read:
+Agent::read($bytes, ['limits' => ['maxPartBytes' => 160 * 1048576, 'maxCells' => 2500000]]);
+
+// Laravel, for every read through the facade or the container:
+// php artisan vendor:publish --tag=holy-sheet-config, then in config/holy-sheet.php
+'limits' => ['maxPartBytes' => 167772160, 'maxCells' => 2500000, /* the rest at their defaults */],
+
+// Anywhere else, the same defaults on an instance:
+$sheets = new HolySheet\HolySheet(['maxPartBytes' => 167772160, 'maxCells' => 2500000]);
+```
+
+A refusal names the limit to raise: `$e->limit`, `$e->max`, `$e->actual`, and
+a message like `Source archive refused: archive_limit (maxPartBytes is
+67,108,864; this file needs at least 275,497,997)`. A setting that is not a
+positive integer, or a name that is no limit, is refused before the file is
+opened, naming it.
+
+**The limits fire before the expensive part.** The byte limits are checked
+from the zip's central directory before anything is inflated. Rows, columns,
+cells and shared strings are counted by streaming each part (no tree is built),
+before the parse, and the cell count stops the moment it passes `maxCells`.
+Measured, 500,000 rows x 10 columns (a 275 MB sheet part), `memory_limit=512M`:
+refused at the defaults in 0.03 s at a 40 MiB peak; with the part limits raised
+and `maxCells` at 1,000,000, refused in 2.5 s at 817 MiB (the inflated part is
+most of it).
+
+### Measured: what a read costs
+
+PHP 8.4, Windows 11, one read per process, every limit raised to admit the
+file; peak is the process's committed memory, and `memory_limit=-1`. Workbooks
+written by this package: 10 or 50 columns of numbers, strings and dates. The
+JavaScript and Python columns are the sibling packages on the same files.
+
+| Rows x columns | Cells | Sheet part | PHP | JavaScript | Python |
+|---|---|---|---|---|---|
+| 100,000 x 10 | 1,100,010 | 59 MB | 12.5 s, 1.6 GB | 7.1 s, 1.5 GB | 19.6 s, 1.1 GB |
+| 250,000 x 10 | 2,500,010 | 137 MB | 26.4 s, 3.6 GB | 18.2 s, 2.9 GB | 52.4 s, 2.4 GB |
+| 500,000 x 10 | 5,000,010 | 275 MB | 54.0 s, 7.2 GB | 38.6 s, 6.0 GB | 98.4 s, 4.8 GB |
+| 100,000 x 50 | 5,000,050 | 284 MB | 59.8 s, 7.3 GB | 38.7 s, 6.1 GB | 94.5 s, 4.9 GB |
+| 1,000,000 x 10 | 10,000,010 | 553 MB | over 12 GB (stopped) | refused: too long for one string | 180.8 s, 9.7 GB |
+| 300,000 x 50 | 15,000,050 | 865 MB | over 12 GB (stopped) | refused: too long for one string | over 12 GB (stopped) |
+| 2,000,000 x 10 (two sheets) | 20,000,020 | 2 x 553 MB | over 12 GB (stopped) | refused: too long for one string | over 12 GB (stopped) |
+
+"Stopped" means the run was killed at a 12 GB cap. By the per-cell figures
+below, PHP would need about 14 GB at 1,000,000 x 10, and Python about 19 GB and
+6 minutes at 2,000,000 x 10; those two are estimates, not measured. The last
+three rows' stopped runs, and JavaScript's refusals at 300,000 x 50 and
+2,000,000 x 10, were measured on the 2.14 limits before the streaming count
+landed (JavaScript then failed with V8's bare `Error`; the typed refusal was
+re-measured on the 1,000,000 x 10 file: 4.7 s, 1.2 GB). Every other cell is
+this release.
+
+Per cell, steady across sizes: PHP about 1,510 bytes and 11 to 12
+microseconds; JavaScript about 1,260 bytes and 7 to 8 microseconds; Python
+about 1,015 bytes and 18 to 21 microseconds. A sheet part is about 55 to 58
+bytes per cell, so set `maxPartBytes` at roughly 60 bytes times the cells you
+want to admit.
+
+**PHP's `memory_limit` does not cover the parse.** libxml's tree is allocated
+outside it, so a read's process peak runs about 25% above PHP's own figure, and
+an oversized read fails with a fatal error rather than a refusal. Measured
+walls, 10 mixed columns:
+
+| `memory_limit` | Reads | Fails at |
+|---|---|---|
+| 512M | 40,000 rows (400,010 cells) | 46,000 rows |
+| 1G | 86,000 rows (860,010 cells) | 92,000 rows |
+| 2G | 180,000 rows (1,800,010 cells) | 184,000 rows |
+
+So set `maxCells` below what your `memory_limit` can parse, about
+`memory_limit / 1,300` cells, and the read refuses cleanly instead.
+
+**Where it gets significant** (over about 30 s, or over about 2 GB): PHP
+crosses 2 GB at about 1,400,000 cells (140,000 rows of 10) and 30 s at about
+2,700,000; JavaScript crosses 2 GB at about 1,600,000 cells and 30 s at about
+4,000,000, and cannot read a part past 536,870,888 characters at all (about
+970,000 rows of 10); Python crosses 30 s at about 1,500,000 cells and 2 GB at
+about 2,000,000. These are interpolated from the table.
+
+**Recommended ceilings**, for a read in a web request: about **1,000,000 cells**
+in PHP (with `memory_limit` at 2G), about **1,500,000** in JavaScript and
+Python. For a **large CRM export** read in a queue job, up to 2,500,000 cells
+(250,000 rows of 10, or 100,000 of 25): `maxPartBytes` 167,772,160 (160 MiB)
+and `maxCells` 2,500,000, everything else at its default; give PHP
+`memory_limit=4G`, Node `--max-old-space-size=4096`, and expect 20 to 55
+seconds. Past about 2,500,000 cells, or any sheet part the 64 MiB default
+refuses, a read this package can do in memory is minutes and gigabytes in every
+port: that is the size at which a streaming reader is needed, and this package
+does not have one.
 
 ## Excel and LibreOffice templates (.xltx, .ots)
 

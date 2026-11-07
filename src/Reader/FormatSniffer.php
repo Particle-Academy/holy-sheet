@@ -27,29 +27,47 @@ final class FormatSniffer
         'application/vnd.oasis.opendocument.spreadsheet-template',
     ];
 
-    /** @return self::XLSX|self::ODS */
-    public static function sniff(string $path): string
+    /**
+     * @param  array<string,int>  $archiveLimits  SourceArchive limits; the defaults when empty
+     * @return self::XLSX|self::ODS
+     */
+    public static function sniff(string $path, array $archiveLimits = []): string
+    {
+        return self::sniffPath($path, $archiveLimits)[1];
+    }
+
+    /**
+     * The opened archive and which reader it needs, from a path. A caller that
+     * goes on to read the file reads this archive, rather than opening (and
+     * inflating) the file a second time.
+     *
+     * @param  array<string,int>  $archiveLimits
+     * @return array{0:SourceArchive,1:self::XLSX|self::ODS}
+     */
+    public static function sniffPath(string $path, array $archiveLimits = []): array
     {
         try {
-            $zip = SourceArchive::fromPath($path);
+            $zip = SourceArchive::fromPath($path, $archiveLimits);
         } catch (ArchiveRefused $error) {
             if ($error->reason === 'archive_corrupt' && @file_get_contents($path, false, null, 0, 2) !== 'PK') {
                 throw UnsupportedFormatException::notAZip($path);
             }
             throw $error;
         }
-        return self::sniffArchive($zip, $path);
+
+        return [$zip, self::sniffArchive($zip, $path)];
     }
 
     /**
      * The same decision for bytes: the opened archive and which reader it needs.
      *
+     * @param  array<string,int>  $archiveLimits
      * @return array{0:SourceArchive,1:self::XLSX|self::ODS}
      */
-    public static function sniffBytes(string $bytes): array
+    public static function sniffBytes(string $bytes, array $archiveLimits = []): array
     {
         try {
-            $zip = SourceArchive::open($bytes);
+            $zip = SourceArchive::open($bytes, $archiveLimits);
         } catch (ArchiveRefused $error) {
             if ($error->reason === 'archive_corrupt' && ! str_starts_with($bytes, 'PK')) {
                 throw UnsupportedFormatException::notAZip('(bytes)');

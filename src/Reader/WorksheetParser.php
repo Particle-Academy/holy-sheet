@@ -31,12 +31,13 @@ final class WorksheetParser
      */
     public static function parse(string $worksheetXml, string $name, array $stylesIndex, array $comments = [], array $sharedStrings = [], ?ReadLimits $limits = null): Sheet
     {
+        // Counted while streaming, BEFORE the parse builds the tree: a limit
+        // checked on the parsed part would come after libxml spent the memory.
+        $limits?->worksheetPart($worksheetXml);
         $xml = PartXml::simple($worksheetXml);
         if ($xml === false) {
             return new Sheet(name: $name);
         }
-        // Counted from the parsed part before one Cell is built.
-        $limits?->worksheet($xml);
 
         $cells = self::parseCells($xml, $stylesIndex, $comments, $sharedStrings);
         $merges = self::parseMerges($xml);

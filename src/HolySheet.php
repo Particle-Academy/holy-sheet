@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HolySheet;
 
+use HolySheet\Reader\ReadLimits;
 use HolySheet\Schema\DumpOptions;
 
 /**
@@ -26,7 +27,43 @@ use HolySheet\Schema\DumpOptions;
  */
 final class HolySheet
 {
-    public const VERSION = '2.13.0';
+    public const VERSION = '2.14.0';
+
+    /** @var array<string,int> */
+    private readonly array $limits;
+
+    /**
+     * Defaults for this instance's reads, which a call's own `limits` option
+     * overrides key by key. The Laravel provider passes the `holy-sheet.limits`
+     * and `holy-sheet.query_limit` config. A bad limit refuses here, when the
+     * instance is made, not on the first read.
+     *
+     * @param  array<string,int>  $limits  any of the nine read limits (ReadLimits::DEFAULTS + ReadLimits::ARCHIVE_DEFAULTS)
+     * @param  int|null  $queryLimit  fromQuery()'s row cap when a call passes no `limit` (default 5000)
+     */
+    public function __construct(array $limits = [], private readonly ?int $queryLimit = null)
+    {
+        ReadLimits::from($limits);
+        if ($queryLimit !== null && $queryLimit < 1) {
+            throw new \InvalidArgumentException('[holy-sheet] query_limit must be a positive integer');
+        }
+        $this->limits = $limits;
+    }
+
+    /**
+     * @param  array<string,mixed>  $options
+     * @return array<string,mixed>
+     */
+    private function withLimits(array $options): array
+    {
+        if ($this->limits === []) {
+            return $options;
+        }
+        $given = $options['limits'] ?? [];
+        $options['limits'] = is_array($given) ? $given + $this->limits : $given;
+
+        return $options;
+    }
 
     /* ------------------------------------------------------------------ */
     /* Instance API (used by the Facade + DI consumers)                    */
@@ -84,7 +121,19 @@ final class HolySheet
      */
     public function describe(string $path, array $options = []): array
     {
-        return Agent::describe($path, $options);
+        return Agent::describe($path, $this->withLimits($options));
+    }
+
+    /**
+     * {@see Agent::read()}: bytes or a path back to a schema, under this
+     * instance's limits.
+     *
+     * @param  array{sheet?: string, limits?: array<string,int>}  $options
+     * @return array<string,mixed>
+     */
+    public function read(string $bytesOrPath, array $options = []): array
+    {
+        return Agent::read($bytesOrPath, $this->withLimits($options));
     }
 
     /**
@@ -96,6 +145,10 @@ final class HolySheet
      */
     public function rows(array $sheet, array $options = []): array
     {
+        if (! array_key_exists('maxCells', $options) && isset($this->limits['maxCells'])) {
+            $options['maxCells'] = $this->limits['maxCells'];
+        }
+
         return Agent::rows($sheet, $options);
     }
 
@@ -151,6 +204,10 @@ final class HolySheet
      */
     public function fromQuery(mixed $source, array|null $columns = null, array $options = []): array
     {
+        if (! array_key_exists('limit', $options) && $this->queryLimit !== null) {
+            $options['limit'] = $this->queryLimit;
+        }
+
         return \HolySheet\Laravel\Helpers\QueryAdapter::fromQuery($source, $columns, $options);
     }
 

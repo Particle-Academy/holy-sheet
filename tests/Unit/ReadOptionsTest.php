@@ -33,16 +33,15 @@ it('reads each shared case as written', function (array $case) {
     $bytes = readOptionFixture($case['file']);
     try {
         $schema = Agent::read($bytes, $case['options']);
-    } catch (ReadLimitExceeded $e) {
-        expect($case)->toHaveKey('refused');
-        expect([
-            'reason' => $e->reason, 'limit' => $e->limit, 'max' => $e->max, 'actual' => $e->actual, 'message' => $e->getMessage(),
-        ])->toBe($case['refused']);
-
-        return;
     } catch (ArchiveRefused $e) {
+        // ReadLimitExceeded is one too. A refusal that names a limit carries
+        // which one, its value and the count; every refusal carries a message.
         expect($case)->toHaveKey('refused');
-        expect(['reason' => $e->reason])->toBe($case['refused']);
+        $got = ['reason' => $e->reason];
+        if ($e->limit !== null) {
+            $got += ['limit' => $e->limit, 'max' => $e->max, 'actual' => $e->actual];
+        }
+        expect($got + ['message' => $e->getMessage()])->toBe($case['refused']);
 
         return;
     } catch (SheetNotFoundException $e) {
@@ -71,7 +70,8 @@ it('turns each shared case into rows', function (array $case) {
 })->with(fn () => array_map(fn ($c) => [$c], array_column(readOptionCases()['rows'], null, 'name')));
 
 it('pins the default limits the ports share', function () {
-    expect(ReadLimits::DEFAULTS)->toBe(readOptionCases()['defaultLimits']);
+    expect(ReadLimits::DEFAULTS)->toBe(readOptionCases()['defaultLimits'])
+        ->and(ReadLimits::ARCHIVE_DEFAULTS)->toBe(readOptionCases()['defaultArchiveLimits']);
 });
 
 it('is still an ArchiveRefused, so an existing catch keeps catching', function () {

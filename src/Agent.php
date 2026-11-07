@@ -127,10 +127,13 @@ final class Agent
         if (!is_file($path)) {
             return ['error' => 'not_found', 'path' => $path];
         }
-        return match (FormatSniffer::sniff($path)) {
-            FormatSniffer::ODS => (new OdsReader())->describe($path, $sheet, $limits),
-            FormatSniffer::XLSX => (new XlsxReader())->describe($path, $sheet, $limits),
-        };
+        // Opened once: the sniffed archive is the one read.
+        [$zip, $kind] = FormatSniffer::sniffPath($path, $limits->archive());
+        $workbook = $kind === FormatSniffer::ODS
+            ? (new OdsReader())->readArchive($zip, $path, $sheet, $limits)
+            : (new XlsxReader())->readArchive($zip, $path, $sheet, $limits);
+
+        return WorkbookSchema::fromWorkbook($workbook);
     }
 
     /**
@@ -202,7 +205,7 @@ final class Agent
             return self::describe($bytesOrPath, $options);
         }
         [$sheet, $limits] = self::readOptions($options);
-        [$zip, $kind] = FormatSniffer::sniffBytes($bytesOrPath);
+        [$zip, $kind] = FormatSniffer::sniffBytes($bytesOrPath, $limits->archive());
         $workbook = $kind === FormatSniffer::ODS
             ? (new OdsReader())->readArchive($zip, '(bytes)', $sheet, $limits)
             : (new XlsxReader())->readArchive($zip, '(bytes)', $sheet, $limits);

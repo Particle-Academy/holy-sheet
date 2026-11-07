@@ -103,6 +103,31 @@ zipParts($dir.'/col-huge.xlsx', xlsx([
     ['name' => 'Cols', 'xml' => '<cols><col min="1" max="2000000000" width="10" customWidth="1"/></cols><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>'],
 ]));
 
+// One cell a row past Excel's last row, and one a column past its last column
+// (XFE is column 16,385). The default maxRows / maxColumns refuse them; a raised
+// limit reads them, which is what "every limit is configurable" has to mean.
+zipParts($dir.'/past-excel-rows.xlsx', xlsx([
+    ['name' => 'Rows', 'xml' => '<sheetData><row r="1048577"><c r="A1048577"><v>1</v></c></row></sheetData>'],
+]));
+zipParts($dir.'/past-excel-columns.xlsx', xlsx([
+    ['name' => 'Cols', 'xml' => '<sheetData><row r="1"><c r="XFE1"><v>1</v></c></row></sheetData>'],
+]));
+
+// A worksheet and a shared-strings table cut off mid-document. The parser calls
+// them malformed and each reads as empty, so a limit counted from the PARSED
+// part never saw them; a limit counted while streaming, before the parse, does.
+// That is the difference between a limit that bounds memory and one that does
+// not: a parser builds its whole tree before it can be asked anything.
+$cut = xlsx([['name' => 'Cut', 'xml' => '']]);
+$cut['xl/worksheets/sheet1.xml'] = XML_HEAD.'<worksheet xmlns="'.MAIN.'"><sheetData><row r="1">'
+    .'<c r="A1"><v>1</v></c><c r="B1"><v>2</v></c><c r="C1"><v>3</v></c>';
+zipParts($dir.'/truncated-sheet.xlsx', $cut);
+$cutStrings = xlsx(
+    [['name' => 'Strings', 'xml' => '<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>']],
+    '<sst xmlns="'.MAIN.'" count="3" uniqueCount="3"><si><t>first</t></si><si><t>second</t></si><si><t>third</t></si>',
+);
+zipParts($dir.'/truncated-strings.xlsx', $cutStrings);
+
 // Three shared strings, one referenced.
 zipParts($dir.'/shared-strings.xlsx', xlsx(
     [['name' => 'Strings', 'xml' => '<sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row></sheetData>']],

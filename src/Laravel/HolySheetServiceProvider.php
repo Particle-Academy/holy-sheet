@@ -28,7 +28,22 @@ final class HolySheetServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../../config/holy-sheet.php', 'holy-sheet');
 
-        $this->app->singleton(HolySheet::class, fn (Application $app) => new HolySheet());
+        // `holy-sheet.limits` and `holy-sheet.query_limit` are the app's defaults
+        // for every read and fromQuery() through the container and the facade. A
+        // bad value refuses when the singleton is first resolved, naming it.
+        $this->app->singleton(HolySheet::class, function (Application $app): HolySheet {
+            $config = $app['config'];
+            $limits = $config->get('holy-sheet.limits') ?? [];
+            if (! is_array($limits)) {
+                throw new \InvalidArgumentException('[holy-sheet] config holy-sheet.limits must be an array of limits');
+            }
+            $queryLimit = $config->get('holy-sheet.query_limit');
+            if ($queryLimit !== null && ! is_int($queryLimit)) {
+                throw new \InvalidArgumentException('[holy-sheet] query_limit must be a positive integer');
+            }
+
+            return new HolySheet($limits, $queryLimit);
+        });
         $this->app->alias(HolySheet::class, 'holy-sheet');
     }
 

@@ -114,6 +114,17 @@ CDATA holds an HTML page. `prologDeclaresDoctype()` reads only the prolog, and t
 parsed document's own `doctype` is what decides. `DoctypeRefusalTest` and
 `PartXmlTest` hold the cases.
 
+**Read limits are counted BEFORE a part is parsed, never after.**
+`ReadLimits::worksheetPart()` and `sharedStringsPart()` stream the part through
+`PartXml::stream()` (XMLReader, no tree) and run before `PartXml::simple()`.
+Don't move a count onto the parsed `SimpleXMLElement`: libxml builds the whole
+tree first, outside PHP's `memory_limit`, so a 500,000-row sheet reached 6.1 GB
+under `memory_limit=512M` before a post-parse count could refuse it. The stream
+matches what SimpleXML property access reads (the first unprefixed `cols` /
+`sheetData`, unprefixed children), and the shared `read-options/cases.json`
+pins the counts in all three ports. Every limit, archive ones included, is set
+through `read()`/`describe()`'s `limits` (and `holy-sheet.limits` in Laravel).
+
 **`[Content_Types].xml` is checked before anything else is read.** Declarations
 decide which other refusals apply, so a `DOCTYPE` there refuses the whole package
 (`refusedDeclaration()`) rather than reading as a package that declares nothing.

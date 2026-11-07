@@ -36,7 +36,7 @@ final class XlsxReader
 
     public function readWorkbook(string $path, ?string $sheet = null, ?ReadLimits $limits = null): Workbook
     {
-        return $this->readArchive(SourceArchive::fromPath($path), $path, $sheet, $limits);
+        return $this->readArchive(SourceArchive::fromPath($path, $limits?->archive() ?? []), $path, $sheet, $limits);
     }
 
     /**

@@ -27,12 +27,12 @@ final class ReadLimitExceeded extends ArchiveRefused
     ];
 
     public function __construct(
-        public readonly string $limit,
-        public readonly int $max,
-        public readonly int $actual,
+        string $limit,
+        int $max,
+        int $actual,
         ?string $subject = null,
     ) {
-        parent::__construct('read_limit');
+        parent::__construct('read_limit', $limit, $max, $actual);
         [$what, $one, $many, $by] = self::WHAT[$limit];
         if ($subject !== null) {
             [$what, $by] = [$subject, ''];

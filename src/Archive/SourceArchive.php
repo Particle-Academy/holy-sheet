@@ -10,7 +10,8 @@ use ZipArchive;
 /** @internal Immutable, bounded reader input; retains opaque bytes and never extracts files. */
 final class SourceArchive
 {
-    private const DEFAULTS = [
+    /** The archive limits a read enforces; every one can be set through read()/describe() `limits`. */
+    public const DEFAULTS = [
         'maxArchiveBytes' => 67108864, 'maxEntries' => 16384, 'maxPartBytes' => 67108864,
         'maxExpandedBytes' => 268435456, 'maxCompressionRatio' => 1000,
     ];
@@ -24,7 +25,7 @@ final class SourceArchive
 
     public static function fromPath(string $path, array $limits = []): self
     {
-        $limits = self::limits($limits);
+        $limits = self::resolveLimits($limits);
         $windowsDrive = strlen($path) >= 3 && preg_match('/^[a-zA-Z]$/', $path[0]) === 1 && $path[1] === ':' && in_array($path[2], ['/', chr(92)], true);
         if (str_contains($path, "\0") || (preg_match('/^[a-zA-Z][a-zA-Z0-9+.-]*:/', $path) === 1 && ! $windowsDrive)) {
             throw new ArchiveRefused('archive_path');
@@ -42,7 +43,7 @@ final class SourceArchive
                 throw new ArchiveRefused('archive_path');
             }
             if ($stat['size'] > $limits['maxArchiveBytes']) {
-                throw new ArchiveRefused('archive_limit');
+                throw ArchiveRefused::overLimit('maxArchiveBytes', $limits['maxArchiveBytes'], $stat['size']);
             }
             $bytes = stream_get_contents($stream, $limits['maxArchiveBytes'] + 1);
             if (! is_string($bytes)) {
@@ -57,20 +58,28 @@ final class SourceArchive
 
     public static function open(string $bytes, array $limits = []): self
     {
-        $limits = self::limits($limits);
+        $limits = self::resolveLimits($limits);
         if (strlen($bytes) > $limits['maxArchiveBytes']) {
-            throw new ArchiveRefused('archive_limit');
+            throw ArchiveRefused::overLimit('maxArchiveBytes', $limits['maxArchiveBytes'], strlen($bytes));
         }
         [$records, $comment] = self::index($bytes, $limits);
 
         return self::decode($bytes, $records, $comment);
     }
 
-    private static function limits(array $limits): array
+    /**
+     * The given limits over the defaults. Each must be a known name and a
+     * positive integer; anything else is `ArchiveRefused('archive_limits')`
+     * naming the setting.
+     *
+     * @param  array<mixed>  $limits
+     * @return array<string,int>
+     */
+    public static function resolveLimits(array $limits): array
     {
         foreach ($limits as $key => $value) {
             if (! array_key_exists($key, self::DEFAULTS) || ! is_int($value) || $value < 1) {
-                throw new ArchiveRefused('archive_limits');
+                throw ArchiveRefused::badSetting('archive_limits', $key, array_key_exists($key, self::DEFAULTS));
             }
         }
 
@@ -169,7 +178,7 @@ final class SourceArchive
             throw new ArchiveRefused('archive_unsupported');
         }
         if ($count > $limits['maxEntries']) {
-            throw new ArchiveRefused('archive_limit');
+            throw ArchiveRefused::overLimit('maxEntries', $limits['maxEntries'], $count);
         }
         $at = self::u32($bytes, $end + 16);
         if ($end - $at < $count * 46) {
@@ -204,9 +213,16 @@ final class SourceArchive
             }
             $seen[$name] = true;
             $expanded += $size;
-            if ($size > $limits['maxPartBytes'] || $expanded > $limits['maxExpandedBytes']
-                || $size > max(1, $compressed) * $limits['maxCompressionRatio']) {
-                throw new ArchiveRefused('archive_limit');
+            // In this order in every port, so the same file names the same limit.
+            if ($size > $limits['maxPartBytes']) {
+                throw ArchiveRefused::overLimit('maxPartBytes', $limits['maxPartBytes'], $size);
+            }
+            if ($expanded > $limits['maxExpandedBytes']) {
+                throw ArchiveRefused::overLimit('maxExpandedBytes', $limits['maxExpandedBytes'], $expanded);
+            }
+            if ($size > max(1, $compressed) * $limits['maxCompressionRatio']) {
+                // The ratio rounded up: over the limit exactly when the check above fires.
+                throw ArchiveRefused::overLimit('maxCompressionRatio', $limits['maxCompressionRatio'], intdiv($size + max(1, $compressed) - 1, max(1, $compressed)));
             }
             if ($method === 0 && $compressed !== $size) {
                 throw new ArchiveRefused('archive_corrupt');

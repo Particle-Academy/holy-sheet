@@ -11,6 +11,7 @@ use HolySheet\Workbook\CellComment;
 use HolySheet\Workbook\CellFormat;
 use HolySheet\Workbook\MergedRegion;
 use HolySheet\Workbook\Sheet;
+use RuntimeException;
 use SimpleXMLElement;
 
 /**
@@ -24,6 +25,9 @@ use SimpleXMLElement;
  */
 final class WorksheetParser
 {
+    /** Excel's column limit (XFD). A `<col>` range past it is not a real sheet. */
+    private const MAX_COLUMNS = 16384;
+
     /**
      * @param  list<?CellFormat>  $stylesIndex
      * @param  array<string,CellComment>  $comments
@@ -140,6 +144,10 @@ final class WorksheetParser
                 if (!isset($col['customWidth'])) continue;
                 $min = (int) $col['min'];
                 $max = (int) $col['max'];
+                // Refused before the loop: an unbounded range would exhaust memory.
+                if ($min > self::MAX_COLUMNS || $max > self::MAX_COLUMNS) {
+                    throw new RuntimeException("[holy-sheet] refused worksheet: a <col> range goes past Excel's column limit of 16,384");
+                }
                 $excelWidth = (float) $col['width'];
                 // Inverse of (px - 5) / 7
                 $px = ($excelWidth * 7) + 5;

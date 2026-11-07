@@ -2,6 +2,20 @@
 
 All notable changes to `particle-academy/holy-sheet` will be documented in this file.
 
+## [1.3.2] - 2026-11-07
+
+A security patch on the 0.4 kit line. It carries this fix and nothing else.
+
+### Security
+- **The reader now refuses a worksheet whose column-width range goes past
+  Excel's column limit of 16,384.** A crafted file could declare a column-width
+  range billions of columns wide, and reading it used memory until PHP ran out
+  and the process died. The reader now throws `RuntimeException` before it walks
+  the range, with a message naming the limit, which is the same exception it
+  already throws for a file it cannot read. Real spreadsheets never go past
+  column 16,384, so they read exactly as before.
+  **What to do:** update. No code changes.
+
 ## [1.3.1] — 2026-11-04
 
 A security patch on the 0.4 kit line. It carries this fix and nothing else.

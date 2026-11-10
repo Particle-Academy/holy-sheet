@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.14.1] - 2026-11-10
+
 ### Changed
 
 - **The agent guide (`Agent::guide()`) catches up with 2.10 to 2.14.** It was

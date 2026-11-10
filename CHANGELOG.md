@@ -4,6 +4,25 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Changed
+
+- **The agent guide (`Agent::guide()`) catches up with 2.10 to 2.14.** It was
+  last touched at 2.9.0. New: building a large or formula-heavy workbook in
+  passes (inputs, then calculations and scenarios, then analysis such as a
+  sensitivity matrix or break-even, checking after each); fixing only the cells
+  a lint issue names (`lint` -> ops checked against `opSchema()` -> `reduce`),
+  with a worked example; `diff`, `equivalent` and `validateAndRepair`; data
+  validation; border styles; `{value: "007"}` keeping text as text; reading
+  (`read` / `describe` with `sheet` and `limits`, `rows`, `catalog`, `dumpJson`,
+  `convertTemplate`, refusals that name the limit); the exchange methods;
+  `fromArray` / `fromCsv`. Byte-identical in holy-sheet-js and holy-sheet-py
+  (new SHA-256 in all three). **What to do:** nothing; guide text only, a patch.
+- Dev only: `AgentGuideCoversTheApiTest` fails when a public `Agent` method is
+  not named in the guide and not on its allowlist, where each entry carries its
+  reason (`guide`, the guide itself). It failed on the 2.9.0 guide, which named
+  none of 18 methods. `phpunit.xml` now forces sqlite `:memory:` (env and
+  server), so the Laravel tests never reach a database set in the shell.
+
 ## [2.14.0] - 2026-11-07
 
 Owner decision, 2026-11-07: "all limitations need to be a config option so apps

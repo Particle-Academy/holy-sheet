@@ -9,7 +9,7 @@ declare(strict_types=1);
  * fails a build instead of telling a model one thing in PHP and another in
  * Node. Edit all three copies, then all three constants.
  */
-const AGENT_GUIDE_SHA256 = '9cc4d5138b6b15447397cc1dd18388c4b558a80c0332743da8b24a79f7223be8';
+const AGENT_GUIDE_SHA256 = '06aeb56a5555330ac87cc67455c6c7f1533194b669e0d0359e364ce20a4daaa0';
 
 it('returns the guide, and it is the shared one', function () {
     $guide = HolySheet\Agent::guide();

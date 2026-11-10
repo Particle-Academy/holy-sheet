@@ -191,6 +191,19 @@ Python linters are line-by-line ports of this class.
   when the claim is TRUE and `#DIV/0!` when it is FALSE (`lintClaim()` in
   `FormulaLinterTest`).
 
+## The agent guide is shipped surface
+
+`agent-guide/professional-workbooks.md` is what `Agent::guide()` returns and what
+a model builds from, so it is part of the API. Release checklist:
+
+- [ ] guide reviewed against this release's CHANGELOG
+
+`AgentGuideCoversTheApiTest` fails on a public `Agent` method the guide never
+names; it cannot tell whether a new option or behaviour is described, which is
+what the review is for. The guide went 2.9.0 to 2.14.0 without one. Edit all
+three copies (and holy-sheet-js's `src/agent-guide.json`), then all three hash
+constants in the `AgentGuideTest`s.
+
 ## Testing
 
 `vendor/bin/pest` (Pest, PHP 8.4+).

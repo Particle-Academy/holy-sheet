@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.14.2] - 2026-11-10
+
 ### Fixed
 
 - **`lint` reads a formula with a leading `=` the way `write` does.** `write`

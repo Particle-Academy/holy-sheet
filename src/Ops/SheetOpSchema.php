@@ -35,9 +35,10 @@ final class SheetOpSchema
         $object = ['type' => 'object'];
         $nullableObject = ['type' => ['object', 'null']];
         $value = ['type' => ['string', 'number', 'boolean', 'null']];
+        $formula = ['type' => 'string', 'description' => "Formula text, canonically written without the leading '=' (e.g. 'A2*2'); a leading '=' is accepted and stripped."];
 
         $variants = [
-            self::variant('set_cell', ['sheet' => $sheet, 'address' => $address, 'value' => $value, 'formula' => ['type' => 'string'], 'computedValue' => $value, 'format' => $nullableObject, 'comment' => $nullableObject], ['sheet', 'address'],
+            self::variant('set_cell', ['sheet' => $sheet, 'address' => $address, 'value' => $value, 'formula' => $formula, 'computedValue' => $value, 'format' => $nullableObject, 'comment' => $nullableObject], ['sheet', 'address'],
                 'Write one cell. Omitting formula or computedValue clears it; omitting format or comment keeps it; null clears it.'),
             self::variant('set_range', ['sheet' => $sheet, 'start' => $address, 'end' => $address, 'values' => ['type' => 'array', 'items' => ['type' => 'array', 'items' => $value]]], ['sheet', 'start', 'values'],
                 'Write a block of values row-major from start, each as a set_cell with no formula.'),

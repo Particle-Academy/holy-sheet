@@ -366,7 +366,8 @@ final class XlsxWriter
         $sAttr = $styleIdx > 0 ? " s=\"{$styleIdx}\"" : '';
 
         if ($cell->formula !== null) {
-            $f = $this->escape(ltrim($cell->formula, '='));
+            // Already canonical (no leading "="): Cell::canonicalFormula().
+            $f = $this->escape($cell->formula);
             $cached = $cell->cachedValue ?? $cell->value;
             $v = $cached !== null ? '<v>'.$this->escape((string) $cached).'</v>' : '';
             return "<c r=\"{$ref}\"{$sAttr}><f>{$f}</f>{$v}</c>";

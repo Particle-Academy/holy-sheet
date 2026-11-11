@@ -13,14 +13,31 @@ namespace HolySheet\Workbook;
  */
 final class Cell
 {
+    /** Canonical: no leading "=". See canonicalFormula(). */
+    public readonly ?string $formula;
+
     public function __construct(
         public readonly string $address,
         public readonly string|int|float|bool|null $value,
-        public readonly ?string $formula = null,
+        ?string $formula = null,
         public readonly ?CellFormat $format = null,
         public readonly ?CellComment $comment = null,
         public readonly string|int|float|bool|null $cachedValue = null,
-    ) {}
+    ) {
+        $this->formula = $formula === null ? null : self::canonicalFormula($formula);
+    }
+
+    /**
+     * The one normalisation of formula text: every leading "=" is stripped,
+     * so "=A2*2" and "A2*2" are the same formula. It lives here, where every
+     * Cell is made, so the writer, the linter and the reader all see the same
+     * text; until 2.14.2 only the writer stripped it, and lint reported
+     * "=A2*2" as a syntax error while write produced `<f>A2*2</f>`.
+     */
+    public static function canonicalFormula(string $formula): string
+    {
+        return ltrim($formula, '=');
+    }
 
     public function excelType(): string
     {

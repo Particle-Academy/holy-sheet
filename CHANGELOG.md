@@ -4,6 +4,21 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`lint` reads a formula with a leading `=` the way `write` does.** `write`
+  always stripped it (`"=A2*2"` was written `<f>A2*2</f>`), but `lint` parsed the
+  raw text and reported `#NAME?` "Syntax error: unexpected '='", so an agent
+  following lint, ops, reduce, lint wrote `"=A2*2"`, was told it was broken, and
+  looped. The stripping now happens once, in `Workbook\Cell` (`Cell::canonicalFormula()`),
+  so every entry point sees the same text; `validate`, `validateAndRepair`,
+  `reduce`, `diff` and `equivalent` already agreed and are pinned by tests. A
+  lint issue's `formula` is now the canonical text (no leading `=`). Nothing to
+  do as a consumer: a formula written either way writes the same bytes as before.
+- `opSchema()` describes `set_cell.formula`: written without the leading `=`, a
+  leading `=` accepted and stripped. The agent guide says the same in its
+  lint-and-fix section (guide hash updated in all three ports).
+
 ## [2.14.1] - 2026-11-10
 
 ### Changed

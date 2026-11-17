@@ -11,7 +11,6 @@ trigger_keywords:
 entry_points:
   cli: "php artisan holy-sheet:write --out=<path>  (reads JSON schema from stdin)"
   php: "HolySheet\\Agent::write($schema, $path)"
-  http: "POST /holy-sheet/export  (Laravel apps that opt-in to the route)"
 schema_url: "vendor/particle-academy/holy-sheet/skills/holy-sheet.schema.json"
 version: "1.1"
 ---

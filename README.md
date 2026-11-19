@@ -415,7 +415,7 @@ is replaced whole when it changes.
 | | Versions |
 |---|---|
 | **PHP** | 8.4+ |
-| **Laravel adapter** | 10.x, 11.x, 12.x, 13.x (optional) |
+| **Laravel adapter** | 13.x (optional; older Laravel is refused) |
 | **Frameworks** | any PHP 8.4+ project — Symfony, Laminas, Slim, plain PHP, CLI |
 | **Runtime deps** | none beyond `ext-zip` |
 

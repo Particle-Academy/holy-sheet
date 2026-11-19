@@ -9,7 +9,7 @@ The optional Laravel layer at `HolySheet\Laravel\*`. Everything here is loaded o
 | Artisan command | `php artisan holy-sheet:write --in=schema.json --out=q4.xlsx` |
 | Publishable config | `config/holy-sheet.php` (default writer, output path, locale) |
 
-The adapter requires `illuminate/support` 10.x–13.x. Apps not running Laravel skip everything in this doc.
+The adapter requires `illuminate/support` 13.x (Laravel 13 is the minimum; an older Laravel is refused by a composer `conflict`). Apps not running Laravel skip everything in this doc.
 
 ## Auto-discovery
 

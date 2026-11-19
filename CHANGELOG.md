@@ -6,6 +6,9 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ### Changed
 
+- **BREAKING:** Laravel 13 is the minimum; an app on Laravel 12 or older can no longer install this; upgrade Laravel. On Laravel 13, or without Laravel at all, do nothing.
+- composer.json now declares `conflict: laravel/framework <13.0, illuminate/support <13.0`; the core stays framework-free. 2.0.0 already promised the kit 0.5 floors (Laravel `^13`); this enforces that promise rather than changing it, so it ships as a minor. The package description, the `illuminate/support` suggest, the README compatibility table, `docs/LaravelAdapter.md` and the Boost guideline (which also still said PHP 8.2+) no longer claim older support.
+
 - Tests run on Pest `^5.0`; `orchestra/testbench` and `phpunit/phpunit` removed from `require-dev`. The Laravel integration tests boot a minimal application from `laravel/framework`, now a `require-dev` entry as the framework this package integrates with (test-only carve-out). No runtime change; nothing to do.
 - Rebranded the display name to Fancy Dev Kit (README and package description). Package names, the npm scope, URLs and the `fancy-ui` MCP id are unchanged.
 - **Docs:** `AGENTS.md` is now the guide to using this package (install, its entries on the Fancy MCP catalog server, API essentials, traps). The contributor notes it held moved to `CONTRIBUTING.md`, and `CLAUDE.md` is now a symlink to it. The README points to the MCP server and to `AGENTS.md`. No code changed; nothing to do.

@@ -1,6 +1,6 @@
 ## Holy Sheet
 
-`particle-academy/holy-sheet` — a framework-agnostic PHP 8.2+ library for writing real `.xlsx` (Office Open XML) spreadsheets and reading them back. Designed as a structured-tool surface for LLM agents: declarative schema in, file out, structured errors when something's wrong. Ships with an optional Laravel 10-13 service provider.
+`particle-academy/holy-sheet` — a framework-agnostic PHP 8.4+ library for writing real `.xlsx` (Office Open XML) spreadsheets and reading them back. Designed as a structured-tool surface for LLM agents: declarative schema in, file out, structured errors when something's wrong. Ships with an optional Laravel 13 service provider.
 
 ### Features
 

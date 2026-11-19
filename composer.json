@@ -1,6 +1,6 @@
 {
     "name": "particle-academy/holy-sheet",
-    "description": "Standalone spreadsheet writing tool for agentic document creation. Framework-agnostic core with optional Laravel 10-13 integration.",
+    "description": "Standalone spreadsheet writing tool for agentic document creation. Framework-agnostic core with optional Laravel 13 integration.",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -36,7 +36,11 @@
         "particle-academy/fancy-conformance": "0.37.0"
     },
     "suggest": {
-        "illuminate/support": "Only needed when using the optional Laravel service provider, facade, or artisan command. Compatible with 10.x through 13.x. The core HolySheet\\Agent + writer require zero framework."
+        "illuminate/support": "Only needed when using the optional Laravel service provider, facade, or artisan command. Needs ^13.0 (Laravel 13+). The core HolySheet\\Agent + writer require zero framework."
+    },
+    "conflict": {
+        "laravel/framework": "<13.0",
+        "illuminate/support": "<13.0"
     },
     "bin": [
         "bin/holy-sheet"

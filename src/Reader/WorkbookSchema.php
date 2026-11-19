@@ -30,6 +30,14 @@ final class WorkbookSchema
         foreach ($workbook->sheets as $sheet) {
             $schema['sheets'][] = self::sheetToSchema($sheet, $workbook->date1904);
         }
+        // The sheet that opens, as an index into `sheets` and its name, so a
+        // caller never has to assume it is the first. Write takes the name back.
+        if ($workbook->activeSheet !== null && isset($workbook->sheets[$workbook->activeSheet])) {
+            $schema['activeSheet'] = [
+                'index' => $workbook->activeSheet,
+                'name' => $workbook->sheets[$workbook->activeSheet]->name,
+            ];
+        }
         if ($workbook->definedNames !== []) {
             $schema['definedNames'] = $workbook->definedNames;
         }

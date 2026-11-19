@@ -38,7 +38,14 @@ is a shorter system-prompt skill.
   The loop is `Agent::validate($schema)` (or `validateAndRepair`), then
   `Agent::lint($schema)`, then `Agent::write($schema, $path)` or `toBytes`.
 - Read: `Agent::read($path)`, `describe($path)` (returns a schema that writes
-  the same workbook), `rows(...)` for one sheet, with read `limits`.
+  the same workbook), `rows(...)` for one sheet, with read `limits`. The result
+  names the sheet the file opens on: `$schema['activeSheet']` is
+  `['index' => 1, 'name' => 'Summary']` (left out when the `sheet` option
+  narrowed the read). Write `'activeSheet' => 'Summary'` to choose it.
+- Write options: `Agent::write($schema, $path, ['formulas' => 'explicit'])`
+  (also `toBytes($schema, $options)`). The default, `'promote'`, writes a bare
+  string starting with `=` as a formula; `'explicit'` writes it as text, so only
+  a `['formula' => ...]` cell is a formula.
 - Build from data: `fromArray`, `fromCsv`.
 - Versions: `diff($a, $b)` returns ops, `reduce($schema, $ops)` applies them,
   `opSchema()`, `equivalent($a, $b)`.
@@ -63,6 +70,12 @@ is a shorter system-prompt skill.
 - **In a read file, only a cell with a formula is a formula.** A text cell whose
   string starts with `=` reads as that text; an error cell reads as its error
   string, e.g. `"#DIV/0!"`.
+- **Writing text you did not author? Pass `['formulas' => 'explicit']`.** By
+  default a bare string starting with `=` becomes a formula, so customer data
+  like `=HYPERLINK(...)` in an export is formula injection. Explicit mode writes
+  it as text; put real formulas in `formula`.
+- **Do not assume the first sheet is the one people use.** Read
+  `activeSheet` instead.
 - **The package ships no HTTP routes.** An "Export to xlsx" endpoint is a
   controller you write around the facade.
 - A read is bounded by limits counted before parsing; raise them through

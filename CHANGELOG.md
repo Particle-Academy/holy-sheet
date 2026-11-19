@@ -4,6 +4,13 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Added
+
+- **`read()` names the sheet the workbook opens on** (CC-fancy-0050): `activeSheet: {index, name}`, right after `sheets`, from the first `<workbookView activeTab>` (absent or not a non-negative integer: 0; past the last sheet: the last), or an `.ods` view's `ActiveTable`. The index counts the described sheets, so a sheet the reader skipped does not shift it. Left out when the `sheet` option narrows the read, which is not the whole workbook. Additive; a caller that ignores the key sees nothing change.
+- **The writer takes `activeSheet`**, a sheet name or the object `read()` returns (its `name` decides), and writes `<workbookView activeTab>`. Naming the first sheet, or nothing, writes no `bookViews`, so existing output is byte-identical. A hidden first sheet still makes the first visible one the active tab unless `activeSheet` names another visible one. The validator refuses an unknown name, a non-string, or a hidden sheet, with the usual structured error. The tool schema (`skills/holy-sheet.schema.json`) describes it; its hash pin moved in all three engines.
+- **Write option `formulas`: `'promote' | 'explicit'`** on `Agent::write($schema, $path, $options)`, `Agent::toBytes($schema, $options)` and the `HolySheet` instance (CC-fancy-0050). `'promote'`, the default, is today's behaviour, byte-identical: a bare string starting with `=` is a formula. Under `'explicit'` that string is written as text, and only a `{"formula": ...}` cell writes `<f>`. Additive; the default is unchanged. **Use `formulas: 'explicit'` for untrusted data** (customer text in an export), where promotion is formula injection. An unknown option or mode throws `InvalidArgumentException` before anything is written. The agent guide describes both; its hash pin moved in all three engines.
+- Shared fixtures for both in `tests/fixtures/active-sheet/` (`cases.json` plus hand-assembled packages from `generate.php`), read by the JS and Python ports as well.
+
 ### Changed
 
 - **BREAKING:** Laravel 13 is the minimum; an app on Laravel 12 or older can no longer install this; upgrade Laravel. On Laravel 13, or without Laravel at all, do nothing.

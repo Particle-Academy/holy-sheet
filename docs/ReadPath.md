@@ -49,12 +49,15 @@ The returned schema is **cell-keyed** (not row-list-keyed) so round-tripping sty
             'tables' => [['name' => 'Sales', 'ref' => 'A1:B5', 'headerRowCount' => 1]],
         ],
     ],
+    'activeSheet' => ['index' => 0, 'name' => 'Q4'], // the sheet the file opens on
     'definedNames' => [['name' => 'Revenue', 'ref' => "'Q4'!\$A\$1:\$B\$5"]],
     'meta' => ['creator' => '…', 'created' => '2026-05-01T12:00:00Z'],
 ]
 ```
 
 `state`, `hiddenRows`, `hiddenColumns`, `tables` and `definedNames` appear only when the file has them, so a plain workbook describes exactly as before. Hidden rows and columns are listed only as far as the sheet holds anything: "hide every column from D on" is one element for 16,381 empty columns, and is not expanded. Excel's own `_xlnm.*` names (print areas, filter ranges) are not listed.
+
+`activeSheet` is always there for a whole-workbook read: the sheet the file opens on, from the first `<workbookView activeTab>` in `xl/workbook.xml` (or the first view's `ActiveTable` in an `.ods`'s `settings.xml`). No view, or an `activeTab` that is not a non-negative integer, is the first sheet; one past the last sheet is the last. `index` counts the sheets in this description, so a sheet the reader skipped (its part is missing) does not shift it, and an active sheet that was skipped falls back to the first. It is left out when `sheet` narrows the read, because that description is not the workbook. The writer takes it back: `activeSheet` as a name, or this object (its `name` decides).
 
 `Agent::write()` accepts this shape directly — the writer treats `cells` as authoritative when present.
 

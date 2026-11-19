@@ -83,9 +83,15 @@ final class XlsxReader
         }
 
         $sheets = [];
+        // The position in workbook.xml of each described sheet: activeTab
+        // counts the <sheet> elements, and a sheet whose part is missing is
+        // skipped below, so the two orders can differ.
+        $positions = [];
+        $position = -1;
         if (isset($sheetsXml->sheets) && $sheetsXml->sheets->sheet) {
             $i = 0;
             foreach ($sheetsXml->sheets->sheet as $sheetEl) {
+                $position++;
                 $name = (string) $sheetEl['name'];
                 if ($only !== null && $name !== $only) continue;
                 $rId = (string) $sheetEl->attributes('r', true)->id;
@@ -163,13 +169,42 @@ final class XlsxReader
                 }
 
                 $sheets[] = $sheet;
+                $positions[] = $position;
                 $i++;
             }
         }
 
         $meta = $this->parseDocProps($zip);
 
-        return new Workbook($sheets, $meta, $sourceKind, self::parseDefinedNames($sheetsXml), self::usesDate1904($sheetsXml));
+        // A read narrowed to one sheet is not the workbook, so it names no active sheet.
+        $active = $only === null && $sheets !== [] ? self::activeSheet($sheetsXml, $positions, $position) : null;
+
+        return new Workbook($sheets, $meta, $sourceKind, self::parseDefinedNames($sheetsXml), self::usesDate1904($sheetsXml), $active);
+    }
+
+    /**
+     * The described sheet that opens: the first `<workbookView>`'s `activeTab`,
+     * clamped to the `<sheet>` elements workbook.xml lists. Absent, or anything
+     * but a non-negative integer, is the default, 0. An active sheet the reader
+     * skipped (its part is missing) falls back to the first described sheet.
+     * CC-fancy-0050.
+     *
+     * @param  list<int>  $positions  the workbook.xml position of each described sheet
+     */
+    private static function activeSheet(SimpleXMLElement $workbook, array $positions, int $lastPosition): int
+    {
+        $tab = 0;
+        if (isset($workbook->bookViews->workbookView[0])) {
+            // xsd:unsignedInt collapses whitespace; only the four XML spaces.
+            $raw = trim((string) $workbook->bookViews->workbookView[0]['activeTab'], " \t\n\r");
+            if (preg_match('/^[0-9]+$/', $raw) === 1) {
+                // Past PHP_INT_MAX the cast saturates, and the clamp takes it to the last sheet.
+                $tab = min((int) $raw, max(0, $lastPosition));
+            }
+        }
+        $index = array_search($tab, $positions, true);
+
+        return $index === false ? 0 : $index;
     }
 
     /** Whether the workbook counts dates from 1904-01-01: `<workbookPr date1904="1"/>` (or "true"). */

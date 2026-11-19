@@ -137,7 +137,16 @@ final class OdsReader
             }
         }
 
-        return new Workbook($sheets, is_string($meta) ? self::readMeta($meta) : [], $sourceKind);
+        // A read narrowed to one table is not the workbook, so it names no active sheet.
+        $active = null;
+        if ($only === null && $sheets !== []) {
+            $settings = $zip->read('settings.xml');
+            $name = is_string($settings) ? self::activeTable($settings) : null;
+            $index = $name === null ? false : array_search($name, array_map(static fn (Sheet $s): string => $s->name, $sheets), true);
+            $active = $index === false ? 0 : $index;
+        }
+
+        return new Workbook($sheets, is_string($meta) ? self::readMeta($meta) : [], $sourceKind, activeSheet: $active);
     }
 
     private function readSheet(SimpleXMLElement $table, OdsStyles $styles): Sheet
@@ -550,5 +559,37 @@ final class OdsReader
         }
 
         return $out;
+    }
+
+    /**
+     * The table the document opens on, by name: the `ActiveTable` item of the
+     * first entry of the `Views` map in settings.xml's `ooo:view-settings`, as
+     * LibreOffice writes it. Null when the part does not say. CC-fancy-0050.
+     */
+    private static function activeTable(string $xml): ?string
+    {
+        $doc = PartXml::simple($xml);
+        if ($doc === false) return null;
+        $settings = OdsStyles::child($doc, Ns::OFFICE, 'settings');
+        if ($settings === null) return null;
+
+        $view = self::configNamed($settings, 'config-item-set', 'ooo:view-settings');
+        $views = $view === null ? null : self::configNamed($view, 'config-item-map-indexed', 'Views');
+        $entry = $views === null ? null : OdsStyles::child($views, Ns::CONFIG, 'config-item-map-entry');
+        $item = $entry === null ? null : self::configNamed($entry, 'config-item', 'ActiveTable');
+
+        return $item === null ? null : (string) $item;
+    }
+
+    /** The first `config:<element>` child of `$parent` whose `config:name` is `$name`. */
+    private static function configNamed(SimpleXMLElement $parent, string $element, string $name): ?SimpleXMLElement
+    {
+        foreach ($parent->children(Ns::CONFIG) as $local => $child) {
+            if ($local === $element && (string) $child->attributes(Ns::CONFIG)['name'] === $name) {
+                return $child;
+            }
+        }
+
+        return null;
     }
 }

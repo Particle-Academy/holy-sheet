@@ -62,13 +62,22 @@ final class Agent
      * Write a workbook to disk. Throws SchemaException on validation
      * failure (see `validate()` to dry-run instead).
      *
+     * Options: `formulas` is `promote` (the default: a bare string beginning
+     * with "=" is a formula) or `explicit` (it is text; only a
+     * `{"formula": ...}` cell writes one). Use `explicit` when cell text comes
+     * from anyone but the caller, such as customer data in an export.
+     *
      * @param  array<string,mixed>  $schema
+     * @param  array{formulas?: 'promote'|'explicit'}  $options
      * @return array{path:string,bytes:int,sheets:int}
+     *
+     * @throws \InvalidArgumentException for an unknown option or formulas mode, before anything is written
      */
-    public static function write(array $schema, string $path): array
+    public static function write(array $schema, string $path, array $options = []): array
     {
+        $normalizer = self::writeOptions($options);
         (new Validator())->assert($schema);
-        $workbook = (new Normalizer())->normalize($schema);
+        $workbook = $normalizer->normalize($schema);
         (new XlsxWriter())->write($workbook, $path);
         return [
             'path' => $path,
@@ -82,13 +91,35 @@ final class Agent
      * HTTP responses (Laravel `Response::make($bytes, 200, ...)`)
      * or piping through a CLI.
      *
+     * Options are write()'s (`formulas`: `promote` | `explicit`).
+     *
      * @param  array<string,mixed>  $schema
+     * @param  array{formulas?: 'promote'|'explicit'}  $options
      */
-    public static function toBytes(array $schema): string
+    public static function toBytes(array $schema, array $options = []): string
     {
+        $normalizer = self::writeOptions($options);
         (new Validator())->assert($schema);
-        $workbook = (new Normalizer())->normalize($schema);
+        $workbook = $normalizer->normalize($schema);
         return (new XlsxWriter())->toBytes($workbook);
+    }
+
+    /**
+     * The write options, checked before the schema is: `formulas`. CC-fancy-0050.
+     *
+     * @param  array<mixed>  $options
+     */
+    private static function writeOptions(array $options): Normalizer
+    {
+        foreach (array_keys($options) as $key) {
+            if ($key !== 'formulas') {
+                throw new \InvalidArgumentException("[holy-sheet] unknown write option: {$key}");
+            }
+        }
+        $formulas = $options['formulas'] ?? 'promote';
+
+        // The Normalizer refuses anything but the two modes, `true` included.
+        return new Normalizer(\is_string($formulas) ? $formulas : '');
     }
 
     /**

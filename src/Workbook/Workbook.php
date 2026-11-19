@@ -37,5 +37,12 @@ final class Workbook
          * the 1900 system, and describe() turns every date into an ISO string.
          */
         public readonly bool $date1904 = false,
+        /**
+         * The sheet shown when the file opens, as an index into `$sheets`;
+         * null when nothing names one. A reader sets it from the file
+         * (`<workbookView activeTab>`, or an ODS view's `ActiveTable`), the
+         * Normalizer from the schema's `activeSheet`. CC-fancy-0050.
+         */
+        public readonly ?int $activeSheet = null,
     ) {}
 }

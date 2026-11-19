@@ -16,10 +16,27 @@ use HolySheet\Workbook\MergedRegion;
 use HolySheet\Workbook\Sheet;
 use HolySheet\Workbook\Workbook;
 use HolySheet\Writer\Format\DateConverter;
+use InvalidArgumentException;
 use Stringable;
 
 final class Normalizer
 {
+    /** The `formulas` write option's two modes. CC-fancy-0050. */
+    public const FORMULAS = ['promote', 'explicit'];
+
+    /**
+     * @param  'promote'|'explicit'  $formulas  `promote` (the default) writes a
+     *   bare string beginning with "=" as a formula; `explicit` writes it as
+     *   text, so only a `{"formula": ...}` cell writes one. Use `explicit` for
+     *   text the caller did not author: it closes formula injection.
+     */
+    public function __construct(private readonly string $formulas = 'promote')
+    {
+        if (! in_array($formulas, self::FORMULAS, true)) {
+            throw new InvalidArgumentException('[holy-sheet] write option formulas must be "promote" or "explicit"');
+        }
+    }
+
     /** @param  array<string,mixed>  $schema */
     public function normalize(array $schema): Workbook
     {
@@ -27,7 +44,31 @@ final class Normalizer
         foreach ($schema['sheets'] as $sheetSchema) {
             $sheets[] = $this->normalizeSheet($sheetSchema);
         }
-        return new Workbook($sheets, $schema['meta'] ?? []);
+        return new Workbook($sheets, $schema['meta'] ?? [], activeSheet: self::activeSheet($schema, $sheets));
+    }
+
+    /**
+     * The index of the sheet `activeSheet` names (a name, or read()'s
+     * `{index, name}`, whose name decides); null when it names none. The
+     * Validator has already refused a name that matches no sheet.
+     *
+     * @param  array<string,mixed>  $schema
+     * @param  list<Sheet>  $sheets
+     */
+    private static function activeSheet(array $schema, array $sheets): ?int
+    {
+        $active = $schema['activeSheet'] ?? null;
+        $name = is_array($active) ? ($active['name'] ?? null) : $active;
+        if (! is_string($name)) {
+            return null;
+        }
+        foreach ($sheets as $i => $sheet) {
+            if ($sheet->name === $name) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     /** @param  array<string,mixed>  $sheet */
@@ -559,11 +600,13 @@ final class Normalizer
      * {"value": "=literal"} is the escape hatch for a genuine leading-"=" string,
      * and {"formula": "..."} means the caller already knows best.
      *
+     * Under the `explicit` formulas mode nothing promotes: the string is text.
+     *
      * @return array{0: mixed, 1: string|null}  [value, formula]
      */
     private function promoteFormula(mixed $value): array
     {
-        if (is_string($value) && strlen($value) > 1 && $value[0] === '=') {
+        if ($this->formulas === 'promote' && is_string($value) && strlen($value) > 1 && $value[0] === '=') {
             return [null, substr($value, 1)];
         }
 

@@ -27,6 +27,9 @@ final class Ns
 
     public const DC = 'http://purl.org/dc/elements/1.1/';
 
+    /** settings.xml: the view settings that name the active table. */
+    public const CONFIG = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
+
     public const META = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
 
     /** LibreOffice's extension namespace; carries `value-type="error"` for a formula error. */

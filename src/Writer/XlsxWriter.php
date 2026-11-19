@@ -169,16 +169,21 @@ final class XlsxWriter
             $sheets .= "<sheet name=\"{$name}\" sheetId=\"{$sheetId}\"{$state} r:id=\"{$rId}\"/>";
         }
         // The active tab must be a visible sheet. It defaults to the first, so
-        // only a hidden first sheet needs saying (the validator guarantees at
-        // least one visible sheet exists).
+        // only a hidden first sheet, or an `activeSheet` naming another sheet,
+        // needs saying (the validator guarantees at least one visible sheet
+        // exists, and that `activeSheet` names a visible one). A schema naming
+        // the default writes nothing, so its bytes are unchanged.
         $bookViews = '';
         if (($workbook->sheets[0]->state ?? 'visible') !== 'visible') {
             foreach ($workbook->sheets as $i => $sheet) {
                 if ($sheet->state === 'visible') {
-                    $bookViews = '<bookViews><workbookView firstSheet="'.$i.'" activeTab="'.$i.'"/></bookViews>';
+                    $active = $workbook->activeSheet ?? $i;
+                    $bookViews = '<bookViews><workbookView firstSheet="'.$i.'" activeTab="'.$active.'"/></bookViews>';
                     break;
                 }
             }
+        } elseif (($workbook->activeSheet ?? 0) !== 0) {
+            $bookViews = '<bookViews><workbookView activeTab="'.$workbook->activeSheet.'"/></bookViews>';
         }
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'

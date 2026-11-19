@@ -1,0 +1,67 @@
+{
+  "about": "CC-fancy-0050: the active sheet on read and write, and the `formulas` write option. Read by all three ports; every expectation is written by hand. Options are PHP's: read(bytes, {sheet}) and toBytes(schema, {formulas}). `activeSheet: null` means the key is absent. `bookViews: null` means workbook.xml has no <bookViews>.",
+  "read": [
+    {"name": "no bookViews is the first sheet", "file": "no-book-views.xlsx", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "a workbookView without activeTab is the first sheet", "file": "book-view-no-tab.xlsx", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "activeTab names the sheet", "file": "active-1.xlsx", "options": {}, "activeSheet": {"index": 1, "name": "Second"}},
+    {"name": "firstSheet does not decide", "file": "active-2.xlsx", "options": {}, "activeSheet": {"index": 2, "name": "Third"}},
+    {"name": "an activeTab past the last sheet is clamped to it", "file": "active-past-end.xlsx", "options": {}, "activeSheet": {"index": 2, "name": "Third"}},
+    {"name": "an activeTab past every integer is clamped to the last sheet", "file": "active-huge.xlsx", "options": {}, "activeSheet": {"index": 2, "name": "Third"}},
+    {"name": "a non-numeric activeTab is the first sheet", "file": "active-junk.xlsx", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "a negative activeTab is the first sheet", "file": "active-negative.xlsx", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "whitespace around activeTab is collapsed", "file": "active-padded.xlsx", "options": {}, "activeSheet": {"index": 1, "name": "Second"}},
+    {"name": "the first workbookView decides", "file": "two-book-views.xlsx", "options": {}, "activeSheet": {"index": 2, "name": "Third"}},
+    {"name": "an active sheet the reader skipped falls back to the first described", "file": "active-sheet-missing.xlsx", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "the index counts the described sheets", "file": "earlier-sheet-missing.xlsx", "options": {}, "activeSheet": {"index": 1, "name": "Third"}},
+    {"name": "a sheet option leaves activeSheet out", "file": "active-1.xlsx", "options": {"sheet": "Second"}, "activeSheet": null},
+    {"name": "a sheet option leaves it out even for the active sheet's neighbour", "file": "active-1.xlsx", "options": {"sheet": "First"}, "activeSheet": null},
+    {"name": "an ods reads the view's ActiveTable", "file": "active-third.ods", "options": {}, "activeSheet": {"index": 2, "name": "Third"}},
+    {"name": "an ods without settings.xml is the first table", "file": "no-settings.ods", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "an ods ActiveTable naming no table is the first table", "file": "active-unknown.ods", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "an ActiveTable outside the view is not the active table", "file": "no-active-table.ods", "options": {}, "activeSheet": {"index": 0, "name": "First"}}
+  ],
+  "write": [
+    {"name": "no activeSheet writes no bookViews", "schema": {"sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}, {"name": "Third", "cells": {"A1": 1}}]},
+      "bookViews": null, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "activeSheet names the tab that opens", "schema": {"activeSheet": "Second", "sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}, {"name": "Third", "cells": {"A1": 1}}]},
+      "bookViews": "<bookViews><workbookView activeTab=\"1\"/></bookViews>", "activeSheet": {"index": 1, "name": "Second"}},
+    {"name": "naming the first sheet is the default and writes nothing", "schema": {"activeSheet": "First", "sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}]},
+      "bookViews": null, "activeSheet": {"index": 0, "name": "First"}},
+    {"name": "the object read() returns is accepted, and its name decides", "schema": {"activeSheet": {"index": 0, "name": "Third"}, "sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}, {"name": "Third", "cells": {"A1": 1}}]},
+      "bookViews": "<bookViews><workbookView activeTab=\"2\"/></bookViews>", "activeSheet": {"index": 2, "name": "Third"}}
+  ],
+  "invalid": [
+    {"name": "an unknown sheet name", "schema": {"activeSheet": "Summary", "sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}]},
+      "errors": [{"path": "activeSheet", "expected": "the name of a sheet in \"sheets\"", "got": "unknown sheet", "value": "Summary",
+        "hint": "No sheet is named \"Summary\". Names match exactly; this workbook has: \"First\", \"Second\"."}]},
+    {"name": "names match exactly", "schema": {"activeSheet": "second", "sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}]},
+      "errors": [{"path": "activeSheet", "expected": "the name of a sheet in \"sheets\"", "got": "unknown sheet", "value": "second",
+        "hint": "No sheet is named \"second\". Names match exactly; this workbook has: \"First\", \"Second\"."}]},
+    {"name": "an index alone is not a name", "schema": {"activeSheet": 1, "sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}]},
+      "errors": [{"path": "activeSheet", "expected": "sheet name (string)", "got": "int", "value": 1,
+        "hint": "Name the sheet shown when the file opens, e.g. \"activeSheet\": \"Summary\". The {\"index\", \"name\"} object read() returns works too; its name decides."}]},
+    {"name": "an object without a name", "schema": {"activeSheet": {"index": 1}, "sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}]},
+      "errors": [{"path": "activeSheet.name", "expected": "sheet name (string)", "got": "null", "value": null,
+        "hint": "Name the sheet shown when the file opens, e.g. \"activeSheet\": \"Summary\". The {\"index\", \"name\"} object read() returns works too; its name decides."}]}
+  ],
+  "formulas": [
+    {"name": "promote (the default) writes a bare \"=\" string as a formula", "options": {},
+      "cells": {"A1": {"value": null, "formula": "SUM(B1:B2)"}, "B1": {"value": 1}, "B2": {"value": 2}, "C1": {"value": null, "formula": "B1*2"}, "D1": {"value": "="}, "E1": {"value": "=x"}},
+      "rows": {"A1": {"value": null, "formula": "1+2"}, "B1": {"value": "plain"}, "A2": {"value": null, "formula": "3*4"}, "B2": {"value": "=literal"}}},
+    {"name": "promote, said out loud, is the default", "options": {"formulas": "promote"},
+      "cells": {"A1": {"value": null, "formula": "SUM(B1:B2)"}, "B1": {"value": 1}, "B2": {"value": 2}, "C1": {"value": null, "formula": "B1*2"}, "D1": {"value": "="}, "E1": {"value": "=x"}},
+      "rows": {"A1": {"value": null, "formula": "1+2"}, "B1": {"value": "plain"}, "A2": {"value": null, "formula": "3*4"}, "B2": {"value": "=literal"}}},
+    {"name": "explicit writes a bare \"=\" string as text, and only {formula} as a formula", "options": {"formulas": "explicit"},
+      "cells": {"A1": {"value": "=SUM(B1:B2)"}, "B1": {"value": 1}, "B2": {"value": 2}, "C1": {"value": null, "formula": "B1*2"}, "D1": {"value": "="}, "E1": {"value": "=x"}},
+      "rows": {"A1": {"value": "=1+2"}, "B1": {"value": "plain"}, "A2": {"value": null, "formula": "3*4"}, "B2": {"value": "=literal"}}}
+  ],
+  "formulaSchema": {"meta": {"creator": "Parity", "created": "2024-01-01T00:00:00Z"}, "sheets": [
+    {"name": "Cells", "cells": {"A1": "=SUM(B1:B2)", "B1": 1, "B2": 2, "C1": {"formula": "B1*2"}, "D1": "=", "E1": {"value": "=x"}}},
+    {"name": "Rows", "rows": [["=1+2", "plain"], [{"formula": "3*4"}, {"value": "=literal"}]]}
+  ]},
+  "badOptions": [
+    {"name": "an unknown formulas mode", "options": {"formulas": "yes"}, "message": "[holy-sheet] write option formulas must be \"promote\" or \"explicit\""},
+    {"name": "a formulas mode that is not a string", "options": {"formulas": true}, "message": "[holy-sheet] write option formulas must be \"promote\" or \"explicit\""},
+    {"name": "an unknown write option", "options": {"formula": "explicit"}, "message": "[holy-sheet] unknown write option: formula"}
+  ]
+}

@@ -84,21 +84,23 @@ final class HolySheet
      * Write a workbook to disk. Throws SchemaException on validation failure.
      *
      * @param  array<string,mixed>  $schema
+     * @param  array{formulas?: 'promote'|'explicit'}  $options  Agent::write()'s
      * @return array{path:string,bytes:int,sheets:int}
      */
-    public function write(array $schema, string $path): array
+    public function write(array $schema, string $path, array $options = []): array
     {
-        return Agent::write($schema, $path);
+        return Agent::write($schema, $path, $options);
     }
 
     /**
      * Return the xlsx bytes without writing to disk.
      *
      * @param  array<string,mixed>  $schema
+     * @param  array{formulas?: 'promote'|'explicit'}  $options  Agent::write()'s
      */
-    public function toBytes(array $schema): string
+    public function toBytes(array $schema, array $options = []): string
     {
-        return Agent::toBytes($schema);
+        return Agent::toBytes($schema, $options);
     }
 
     /**

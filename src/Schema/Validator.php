@@ -66,7 +66,53 @@ final class Validator
                 'Excel refuses a workbook with no visible sheet. Leave `state` off (visible) on at least one.');
         }
 
+        if (array_key_exists('activeSheet', $schema)) {
+            $errors = array_merge($errors, $this->validateActiveSheet($schema['activeSheet'], $schema['sheets'], $sheetNames));
+        }
+
         return $errors;
+    }
+
+    /**
+     * `activeSheet` names the sheet shown when the file opens: a sheet name, or
+     * the `{index, name}` object read() returns (its name decides; the index is
+     * where the sheet was when it was read). CC-fancy-0050.
+     *
+     * @param  array<mixed>  $sheets
+     * @param  list<string>  $sheetNames
+     * @return list<array{path:string,expected:string,got:string,value:mixed,hint:string}>
+     */
+    private function validateActiveSheet(mixed $active, array $sheets, array $sheetNames): array
+    {
+        $hint = 'Name the sheet shown when the file opens, e.g. "activeSheet": "Summary". '
+            .'The {"index", "name"} object read() returns works too; its name decides.';
+        $path = 'activeSheet';
+        $name = $active;
+        // JSON `{}` decodes to [] in PHP, so an empty array is the nameless object.
+        if (is_array($active) && ($active === [] || ! array_is_list($active))) {
+            $path = 'activeSheet.name';
+            $name = $active['name'] ?? null;
+        }
+        if (! is_string($name)) {
+            return [$this->error($path, 'sheet name (string)', $this->typeOf($name), $name, $hint)];
+        }
+
+        $at = array_search($name, $sheetNames, true);
+        if ($at === false) {
+            $listed = implode(', ', array_map(static fn (string $n): string => '"'.$n.'"', $sheetNames));
+
+            return [$this->error('activeSheet', 'the name of a sheet in "sheets"', 'unknown sheet', $name,
+                "No sheet is named \"{$name}\". Names match exactly; this workbook has: {$listed}.")];
+        }
+        foreach ($sheets as $sheet) {
+            if (is_array($sheet) && ($sheet['name'] ?? null) === $name
+                && in_array($sheet['state'] ?? 'visible', ['hidden', 'veryHidden'], true)) {
+                return [$this->error('activeSheet', 'a visible sheet', 'hidden sheet', $name,
+                    "Excel opens on a visible sheet. Make \"{$name}\" visible, or name another sheet.")];
+            }
+        }
+
+        return [];
     }
 
     /**

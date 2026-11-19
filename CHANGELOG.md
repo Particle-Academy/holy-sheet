@@ -13,6 +13,14 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ### Fixed
 
+- **Docs: an `.xlsm` is read; only an `.xltm` is refused.** The agent guide
+  called an `.xlsm` a "macro-enabled template" that is "refused, never read",
+  and `AGENTS.md` said `.xlsm` is "never read". Both were wrong: `read()` reads
+  an `.xlsm` workbook's values and ignores its macros, as the 2.x changelog
+  already said. The guide and `AGENTS.md` now also say that a text cell starting
+  with `=` reads as text (only a cell with a formula is a formula) and that an
+  error cell reads as its error string, e.g. `"#DIV/0!"`. The guide's hash pin
+  moved with it in all three engines. No code changed; nothing to do.
 - **Docs:** `skills/holy-sheet.md` no longer lists a `POST /holy-sheet/export` HTTP entry point. The package ships no routes (as the README says); wrap the facade in your own controller.
 
 ## [2.14.2] - 2026-11-10

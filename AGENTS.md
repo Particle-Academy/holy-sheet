@@ -57,7 +57,12 @@ is a shorter system-prompt skill.
 - **Lint before writing.** A schema can be valid and still compute wrong;
   `lint` catches formula errors before the file exists.
 - **Unsafe archives throw `HolySheet\Exceptions\ArchiveRefused`** with a
-  `reason`; macro-enabled `.xltm` / `.xlsm` are never read or converted.
+  `reason`; a macro-enabled `.xltm` template is never read or converted. A
+  macro-enabled `.xlsm` workbook IS read (its macros are ignored), but is never
+  converted.
+- **In a read file, only a cell with a formula is a formula.** A text cell whose
+  string starts with `=` reads as that text; an error cell reads as its error
+  string, e.g. `"#DIV/0!"`.
 - **The package ships no HTTP routes.** An "Export to xlsx" endpoint is a
   controller you write around the facade.
 - A read is bounded by limits counted before parsing; raise them through

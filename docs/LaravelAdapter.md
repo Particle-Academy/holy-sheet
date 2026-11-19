@@ -169,7 +169,7 @@ public function handle(): void
 
 ## Testing the adapter
 
-`Orchestra\Testbench` works out of the box. Holy Sheet's own test suite uses it for the facade + command tests — copy the patterns from `tests/Laravel/`:
+In your app's own Pest or PHPUnit suite the facade, the container binding and the artisan commands work like any other package's. Holy Sheet's own suite boots a minimal Laravel application from `laravel/framework` for its facade + command tests (`tests/Laravel/TestCase.php`) — copy the patterns from `tests/Laravel/`:
 
 ```php
 use HolySheet\Laravel\Facades\HolySheet;

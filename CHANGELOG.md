@@ -6,6 +6,7 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ### Changed
 
+- Tests run on Pest `^5.0`; `orchestra/testbench` and `phpunit/phpunit` removed from `require-dev`. The Laravel integration tests boot a minimal application from `laravel/framework`, now a `require-dev` entry as the framework this package integrates with (test-only carve-out). No runtime change; nothing to do.
 - Rebranded the display name to Fancy Dev Kit (README and package description). Package names, the npm scope, URLs and the `fancy-ui` MCP id are unchanged.
 - **Docs:** `AGENTS.md` is now the guide to using this package (install, its entries on the Fancy MCP catalog server, API essentials, traps). The contributor notes it held moved to `CONTRIBUTING.md`, and `CLAUDE.md` is now a symlink to it. The README points to the MCP server and to `AGENTS.md`. No code changed; nothing to do.
 - CI: re-pin org third-party allowlist to 2614224

@@ -77,6 +77,17 @@ it('reads the active sheet of each shared fixture', function (array $case) {
     expect($schema['activeSheet'] ?? null)->toBe($case['activeSheet']);
 })->with(fn () => array_map(fn ($c) => [$c], array_column(activeSheetCases()['read'], null, 'name')));
 
+it('raises for a missing sheet part rather than picking an active sheet around it', function (array $case) {
+    $bytes = (string) file_get_contents(__DIR__.'/../fixtures/active-sheet/'.$case['file']);
+
+    try {
+        Agent::read($bytes, $case['options']);
+        $this->fail('expected MissingPartException');
+    } catch (\HolySheet\Exceptions\MissingPartException $e) {
+        expect($e->part)->toBe($case['part']);
+    }
+})->with(fn () => array_map(fn ($c) => [$c], array_column(activeSheetCases()['readRaises'], null, 'name')));
+
 it('describes the active sheet from a path too', function () {
     expect(Agent::describe(__DIR__.'/../fixtures/active-sheet/active-1.xlsx')['activeSheet'])
         ->toBe(['index' => 1, 'name' => 'Second']);

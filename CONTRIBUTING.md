@@ -108,7 +108,8 @@ the entry point for entity expansion. **A refusal raises
 looked like malformed XML instead, so a worksheet with a DOCTYPE read as an
 EMPTY sheet and the caller could not tell. Malformed XML is not a refusal and
 still fails quietly (`false` / `null`), so each caller keeps its own handling of
-a part it cannot parse, and a missing part is still just absent. A test fails if
+a part it cannot parse. A part a relationship points at that is MISSING raises
+`MissingPartException` (see below). A test fails if
 `src/` parses XML anywhere else.
 
 Don't replace the check with a search of the bytes for `<!DOCTYPE`. That search
@@ -135,6 +136,18 @@ part's elements; 2.11.9 delivered all), so never trust its count there.
 **`[Content_Types].xml` is checked before anything else is read.** Declarations
 decide which other refusals apply, so a `DOCTYPE` there refuses the whole package
 (`refusedDeclaration()`) rather than reading as a package that declares nothing.
+
+**Relationship targets resolve per OPC, in one place.** `RelsParser::resolve($source,
+$target)`: relative to the directory of the part that OWNS the relationship, or
+package-absolute when the target starts with `/` (openpyxl and LibreOffice write
+those; Excel writes relative). Before this was one function, the worksheet lookup
+handled `/` and the comments / drawing / chart / table lookups did not, so an
+openpyxl workbook lost every comment and chart with no error, and both ports
+lost every SHEET. A sheet's rels part is `RelsParser::relsPathOf()` of its part,
+never `sheet{N}`. External relationships are never parts. A relationship whose
+part is missing raises `MissingPartException`; never `continue` past one. Shared
+cases: `tests/fixtures/rels-targets/` (`php generate.php` rebuilds the packages,
+which three suites read).
 
 **Dates follow the workbook's date system.** `<workbookPr date1904="1"/>` (or
 `"true"`) moves the epoch from 1899-12-30 to 1904-01-01; `Workbook::$date1904`

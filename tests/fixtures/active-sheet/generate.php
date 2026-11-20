@@ -151,12 +151,12 @@ zipParts($dir.'/active-junk.xlsx', xlsx(view(' activeTab="two"')));
 zipParts($dir.'/active-negative.xlsx', xlsx(view(' activeTab="-1"')));
 zipParts($dir.'/active-padded.xlsx', xlsx(view(' activeTab=" 1 "')));
 zipParts($dir.'/two-book-views.xlsx', xlsx('<bookViews><workbookView activeTab="2"/><workbookView activeTab="1"/></bookViews>'));
-// The active tab's worksheet part is missing, so the reader skips that sheet:
-// the description falls back to its first sheet rather than naming a sheet it
-// does not contain.
+// The active tab's worksheet part is missing. Until the rels-targets fix the
+// reader skipped that sheet and fell back to the first; a missing part now
+// raises MissingPartException instead (cases.json `readRaises`).
 zipParts($dir.'/active-sheet-missing.xlsx', xlsx(view(' activeTab="1"'), ['Second']));
-// A sheet before the active one is skipped: the index counts the sheets the
-// description holds, so Third is at 1, not 2.
+// A sheet before the active one is missing: that raises too, rather than
+// shifting the index onto the sheets that happen to be present.
 zipParts($dir.'/earlier-sheet-missing.xlsx', xlsx(view(' activeTab="2"'), ['First']));
 
 zipParts($dir.'/no-settings.ods', ods(null), true);

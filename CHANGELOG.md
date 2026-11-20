@@ -4,6 +4,36 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Workbooks with absolute relationship targets (openpyxl, LibreOffice and
+  others) now read; a missing part now raises instead of being skipped
+  silently.** Worksheet targets already handled a leading `/`, but every
+  relationship BELOW the workbook did not: openpyxl's comments
+  (`/xl/comments/comment1.xml`), drawings, charts and tables resolved to paths
+  like `xl/worksheets/xl/comments/comment1.xml`, were not found, and were
+  dropped with no error. Every relationship target now resolves per OPC
+  (ECMA-376 Part 2) through one function, `RelsParser::resolve()`: against the
+  directory of the part that owns the relationship, or package-absolute when it
+  starts with `/`, with `.` and `..` normalised. Also fixed on the way:
+  - styles and shared strings are found through the workbook's relationships,
+    falling back to `xl/styles.xml` / `xl/sharedStrings.xml` only when none is
+    declared;
+  - `TargetMode="External"` relationships (hyperlinks, linked files) are never
+    read as parts (`RelsParser::isExternal()`; `parse()` returns `TargetMode`).
+- **Behaviour change: a relationship whose part is missing throws
+  `HolySheet\Exceptions\MissingPartException`** (new, a `RuntimeException`
+  carrying `$part`, `$source` and `$relId`), as does a `<sheet>` whose `r:id`
+  names no relationship. Before, the sheet, comments, chart or table was
+  dropped silently. What to do: nothing for a well-formed file. If you read
+  damaged packages on purpose, catch `MissingPartException` (or
+  `RuntimeException`, which already caught a missing `xl/workbook.xml`). A sheet
+  left out by the `sheet` option is never opened, so its part is not required.
+  The shared active-sheet cases for a missing sheet part moved from "fall back"
+  to "raises" (`readRaises`), and the new shared fixtures are
+  `tests/fixtures/rels-targets/` (hand-assembled packages + `cases.json`, read
+  by the Node and Python ports too).
+
 ## [2.15.0] - 2026-11-19
 
 ### Added

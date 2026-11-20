@@ -7,6 +7,7 @@ namespace HolySheet\Reader;
 use HolySheet\Archive\OfficeTemplate;
 use HolySheet\Archive\PartXml;
 use HolySheet\Archive\SourceArchive;
+use HolySheet\Exceptions\MissingPartException;
 use HolySheet\Exceptions\SheetNotFoundException;
 use HolySheet\Workbook\Workbook;
 use RuntimeException;
@@ -45,25 +46,33 @@ final class XlsxReader
      * `$only` reads just the sheet of that name (exactly as written in the
      * file); the others are never parsed, so they cost nothing and count toward
      * no limit. An unknown name throws SheetNotFoundException.
+     *
+     * Every relationship target resolves per OPC (RelsParser::resolve), and a
+     * relationship whose part the package does not contain throws
+     * MissingPartException rather than being skipped.
      */
     public function readArchive(SourceArchive $zip, string $path = '(bytes)', ?string $only = null, ?ReadLimits $limits = null): Workbook
     {
         $limits ??= ReadLimits::from();
         $sourceKind = OfficeTemplate::kind($zip, $path);
 
-        $stylesXml = $zip->read('xl/styles.xml');
-        $stylesIndex = is_string($stylesXml) ? StylesParser::parse($stylesXml) : [];
-
-        $sharedStringsXml = $zip->read('xl/sharedStrings.xml');
-        $sharedStrings = is_string($sharedStringsXml) ? SharedStringsParser::parse($sharedStringsXml, $limits) : [];
-
-        $workbookXml = $zip->read('xl/workbook.xml');
+        $workbookPath = 'xl/workbook.xml';
+        $workbookXml = $zip->read($workbookPath);
         if ($workbookXml === null) {
             throw new RuntimeException("[holy-sheet] missing xl/workbook.xml in {$path}");
         }
 
-        $workbookRelsXml = $zip->read('xl/_rels/workbook.xml.rels');
+        $workbookRelsXml = $zip->read(RelsParser::relsPathOf($workbookPath));
         $workbookRels = is_string($workbookRelsXml) ? RelsParser::parse($workbookRelsXml) : [];
+
+        // Styles and shared strings are wherever the workbook's relationships
+        // say; the conventional names are only the fallback for a package that
+        // declares neither.
+        $stylesXml = self::workbookPart($zip, $workbookRels, $workbookPath, 'styles', 'xl/styles.xml');
+        $stylesIndex = is_string($stylesXml) ? StylesParser::parse($stylesXml) : [];
+
+        $sharedStringsXml = self::workbookPart($zip, $workbookRels, $workbookPath, 'sharedStrings', 'xl/sharedStrings.xml');
+        $sharedStrings = is_string($sharedStringsXml) ? SharedStringsParser::parse($sharedStringsXml, $limits) : [];
 
         $sheetsXml = PartXml::simple($workbookXml);
         if ($sheetsXml === false) {
@@ -84,83 +93,76 @@ final class XlsxReader
 
         $sheets = [];
         // The position in workbook.xml of each described sheet: activeTab
-        // counts the <sheet> elements, and a sheet whose part is missing is
-        // skipped below, so the two orders can differ.
+        // counts the <sheet> elements. Every listed sheet is described (a
+        // missing part raises), but the mapping is kept explicit.
         $positions = [];
         $position = -1;
         if (isset($sheetsXml->sheets) && $sheetsXml->sheets->sheet) {
-            $i = 0;
             foreach ($sheetsXml->sheets->sheet as $sheetEl) {
                 $position++;
                 $name = (string) $sheetEl['name'];
                 if ($only !== null && $name !== $only) continue;
                 $rId = (string) $sheetEl->attributes('r', true)->id;
-                $target = $workbookRels[$rId]['Target'] ?? null;
-                if ($target === null) continue;
+                $sheetRel = $workbookRels[$rId] ?? null;
+                if ($sheetRel === null || RelsParser::isExternal($sheetRel)) {
+                    throw new MissingPartException(null, $workbookPath, $rId);
+                }
 
-                $sheetPath = str_starts_with($target, '/') ? ltrim($target, '/') : self::resolveRelativePath('xl/workbook.xml', $target);
-                $worksheetXml = $zip->read($sheetPath);
-                if ($worksheetXml === null) continue;
+                $sheetPath = RelsParser::resolve($workbookPath, $sheetRel['Target']);
+                $worksheetXml = self::requirePart($zip, $sheetPath, $workbookPath, $rId);
 
                 // The sheet's own rels part sits beside it, named after its
-                // actual file -- not after its position in the tab strip, which
+                // actual part -- not after its position in the tab strip, which
                 // need not match (sheet3.xml can be the first tab).
-                $sheetRelsPath = dirname($sheetPath).'/_rels/'.basename($sheetPath).'.rels';
-                $sheetRelsXml = $zip->read($sheetRelsPath);
+                $sheetRelsXml = $zip->read(RelsParser::relsPathOf($sheetPath));
+                $sheetRels = is_string($sheetRelsXml) ? RelsParser::parse($sheetRelsXml) : [];
+
                 $comments = [];
-                if (is_string($sheetRelsXml)) {
-                    $sheetRels = RelsParser::parse($sheetRelsXml);
-                    $commentRels = RelsParser::byType($sheetRels, '/comments');
-                    foreach ($commentRels as $cr) {
-                        $commentsTarget = $cr['Target'];
-                        $commentsPath = self::resolveRelativePath($sheetPath, $commentsTarget);
-                        $commentsXml = $zip->read($commentsPath);
-                        if (is_string($commentsXml)) {
-                            $comments = array_replace($comments, CommentsParser::parse($commentsXml));
-                        }
-                    }
+                foreach (RelsParser::byType($sheetRels, '/comments') as $cId => $cr) {
+                    $commentsXml = self::requirePart($zip, RelsParser::resolve($sheetPath, $cr['Target']), $sheetPath, (string) $cId);
+                    $comments = array_replace($comments, CommentsParser::parse($commentsXml));
                 }
 
                 $sheet = WorksheetParser::parse($worksheetXml, $name, $stylesIndex, $comments, $sharedStrings, $limits);
 
                 // Charts: sheet rels -> drawing -> drawing rels -> chart parts.
-                if (is_string($sheetRelsXml)) {
-                    $charts = [];
-                    foreach (RelsParser::byType(RelsParser::parse($sheetRelsXml), '/drawing') as $dr) {
-                        $drawingPath = self::resolveRelativePath($sheetPath, $dr['Target']);
-                        $drawingXml = $zip->read($drawingPath);
-                        $drawingRelsXml = $zip->read(dirname($drawingPath).'/_rels/'.basename($drawingPath).'.rels');
-                        if (! is_string($drawingXml) || ! is_string($drawingRelsXml)) {
+                $charts = [];
+                foreach (RelsParser::byType($sheetRels, '/drawing') as $dId => $dr) {
+                    $drawingPath = RelsParser::resolve($sheetPath, $dr['Target']);
+                    $drawingXml = self::requirePart($zip, $drawingPath, $sheetPath, (string) $dId);
+                    // A drawing with no rels part holds no chart; that is not a missing part.
+                    $drawingRelsXml = $zip->read(RelsParser::relsPathOf($drawingPath));
+                    if (! is_string($drawingRelsXml)) {
+                        continue;
+                    }
+                    $drawingRels = RelsParser::parse($drawingRelsXml);
+                    foreach (ChartParser::anchors($drawingXml) as $anchor) {
+                        $chartRel = $drawingRels[$anchor['rel']] ?? null;
+                        if ($chartRel === null || RelsParser::isExternal($chartRel)) {
                             continue;
                         }
-                        $drawingRels = RelsParser::parse($drawingRelsXml);
-                        foreach (ChartParser::anchors($drawingXml) as $anchor) {
-                            $target = $drawingRels[$anchor['rel']]['Target'] ?? null;
-                            $chartXml = is_string($target) ? $zip->read(self::resolveRelativePath($drawingPath, $target)) : null;
-                            $chart = is_string($chartXml) ? ChartParser::chart($chartXml, $name, $anchor['from'], $anchor['to']) : null;
-                            if ($chart !== null) {
-                                $charts[] = $chart;
-                            }
+                        $chartXml = self::requirePart($zip, RelsParser::resolve($drawingPath, $chartRel['Target']), $drawingPath, $anchor['rel']);
+                        $chart = ChartParser::chart($chartXml, $name, $anchor['from'], $anchor['to']);
+                        if ($chart !== null) {
+                            $charts[] = $chart;
                         }
                     }
-                    if ($charts !== []) {
-                        $sheet = $sheet->withCharts($charts);
-                    }
+                }
+                if ($charts !== []) {
+                    $sheet = $sheet->withCharts($charts);
                 }
 
                 // Excel tables: sheet rels -> table parts.
-                if (is_string($sheetRelsXml)) {
-                    $tables = [];
-                    foreach (RelsParser::byType(RelsParser::parse($sheetRelsXml), '/table') as $tr) {
-                        $tableXml = $zip->read(self::resolveRelativePath($sheetPath, $tr['Target']));
-                        $table = is_string($tableXml) ? self::parseTable($tableXml) : null;
-                        if ($table !== null) {
-                            $tables[] = $table;
-                        }
+                $tables = [];
+                foreach (RelsParser::byType($sheetRels, '/table') as $tId => $tr) {
+                    $tableXml = self::requirePart($zip, RelsParser::resolve($sheetPath, $tr['Target']), $sheetPath, (string) $tId);
+                    $table = self::parseTable($tableXml);
+                    if ($table !== null) {
+                        $tables[] = $table;
                     }
-                    if ($tables !== []) {
-                        $sheet = $sheet->with(['tables' => $tables]);
-                    }
+                }
+                if ($tables !== []) {
+                    $sheet = $sheet->with(['tables' => $tables]);
                 }
 
                 $state = (string) $sheetEl['state'];
@@ -170,7 +172,6 @@ final class XlsxReader
 
                 $sheets[] = $sheet;
                 $positions[] = $position;
-                $i++;
             }
         }
 
@@ -185,9 +186,8 @@ final class XlsxReader
     /**
      * The described sheet that opens: the first `<workbookView>`'s `activeTab`,
      * clamped to the `<sheet>` elements workbook.xml lists. Absent, or anything
-     * but a non-negative integer, is the default, 0. An active sheet the reader
-     * skipped (its part is missing) falls back to the first described sheet.
-     * CC-fancy-0050.
+     * but a non-negative integer, is the default, 0. A tab no described sheet
+     * sits at falls back to the first described sheet. CC-fancy-0050.
      *
      * @param  list<int>  $positions  the workbook.xml position of each described sheet
      */
@@ -281,21 +281,36 @@ final class XlsxReader
         return $meta;
     }
 
-    /** Resolve `../comments1.xml` relative to `xl/worksheets/sheet1.xml`. */
-    private static function resolveRelativePath(string $base, string $target): string
+    /**
+     * A part a relationship points at. Missing, it raises: a part skipped
+     * silently is how a workbook read as having no sheets and no error.
+     */
+    private static function requirePart(SourceArchive $zip, string $part, string $source, string $relId): string
     {
-        // Drop filename from base
-        $baseDir = dirname($base);
-        $combined = $baseDir.'/'.$target;
-        // Normalize ../
-        $parts = [];
-        foreach (explode('/', $combined) as $segment) {
-            if ($segment === '..') {
-                array_pop($parts);
-            } elseif ($segment !== '' && $segment !== '.') {
-                $parts[] = $segment;
+        $xml = $zip->read($part);
+        if ($xml === null) {
+            throw new MissingPartException($part, $source, $relId);
+        }
+
+        return $xml;
+    }
+
+    /**
+     * The workbook-level part of relationship type `$type` (its last URI
+     * segment, so the transitional and strict namespaces both match), or the
+     * conventional `$fallback` when the workbook declares no such relationship.
+     * A declared part that is missing raises.
+     *
+     * @param  array<string,array{Target:string,Type:string,TargetMode:string}>  $workbookRels
+     */
+    private static function workbookPart(SourceArchive $zip, array $workbookRels, string $workbookPath, string $type, string $fallback): ?string
+    {
+        foreach ($workbookRels as $id => $rel) {
+            if (! RelsParser::isExternal($rel) && str_ends_with($rel['Type'], '/'.$type)) {
+                return self::requirePart($zip, RelsParser::resolve($workbookPath, $rel['Target']), $workbookPath, (string) $id);
             }
         }
-        return implode('/', $parts);
+
+        return $zip->read($fallback);
     }
 }

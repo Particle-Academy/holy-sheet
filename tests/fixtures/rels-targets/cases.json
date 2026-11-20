@@ -1,0 +1,39 @@
+{
+  "about": "Relationship targets resolved per OPC (ECMA-376 Part 2): relative to the directory of the part that owns the relationship, or package-absolute when the target starts with \"/\"; \".\" and \"..\" normalise; TargetMode=\"External\" is never a part. A relationship whose part is missing raises MissingPartException naming the part, never a silent skip. Read by all three ports; every expectation is written by hand. `sheets` is a projection of read(): per sheet its name, each cell's value, the addresses whose format is bold, each comment's text, and the type of each chart. `part: null` means the relationship itself is missing.",
+  "read": [
+    {"name": "relative targets (the Excel layout)", "file": "relative.xlsx", "options": {}, "sheets": "both"},
+    {"name": "package-absolute targets (the openpyxl layout)", "file": "absolute.xlsx", "options": {}, "sheets": "both"},
+    {"name": "\".\" and \"..\" segments normalise", "file": "dot-segments.xlsx", "options": {}, "sheets": "both"},
+    {"name": "part names that are not sheet1..N", "file": "named-parts.xlsx", "options": {}, "sheets": "both"},
+    {"name": "each sheet's rels part is found from its own part name, not its tab position", "file": "swapped-parts.xlsx", "options": {}, "sheets": "both"},
+    {"name": "styles and shared strings are found through the workbook's relationships", "file": "parts-elsewhere.xlsx", "options": {}, "sheets": "both"},
+    {"name": "external relationships are never read as parts", "file": "external-targets.xlsx", "options": {}, "sheets": "both"},
+    {"name": "one sheet of named parts", "file": "named-parts.xlsx", "options": {"sheet": "Summary"}, "sheets": "summary"},
+    {"name": "one sheet of swapped parts", "file": "swapped-parts.xlsx", "options": {"sheet": "Data"}, "sheets": "data"},
+    {"name": "one sheet of absolute targets", "file": "absolute.xlsx", "options": {"sheet": "Summary"}, "sheets": "summary"},
+    {"name": "a sheet that is not read does not need its part", "file": "missing-sheet.xlsx", "options": {"sheet": "Data"}, "sheets": "data"}
+  ],
+  "projections": {
+    "both": [
+      {"name": "Data", "cells": {"A1": "Alpha", "A2": 1, "A3": 2}, "bold": ["A1"], "comments": {"A1": "Check this"}, "charts": ["column"]},
+      {"name": "Summary", "cells": {"A1": "Beta"}, "bold": [], "comments": {"A1": "Summary note"}, "charts": []}
+    ],
+    "data": [
+      {"name": "Data", "cells": {"A1": "Alpha", "A2": 1, "A3": 2}, "bold": ["A1"], "comments": {"A1": "Check this"}, "charts": ["column"]}
+    ],
+    "summary": [
+      {"name": "Summary", "cells": {"A1": "Beta"}, "bold": [], "comments": {"A1": "Summary note"}, "charts": []}
+    ]
+  },
+  "raises": [
+    {"name": "a missing worksheet part", "file": "missing-sheet.xlsx", "options": {}, "part": "xl/worksheets/sheet2.xml", "source": "xl/workbook.xml"},
+    {"name": "a missing worksheet part named absolutely", "file": "missing-sheet-absolute.xlsx", "options": {}, "part": "xl/worksheets/sheet1.xml", "source": "xl/workbook.xml"},
+    {"name": "a missing worksheet part read on its own", "file": "missing-sheet.xlsx", "options": {"sheet": "Summary"}, "part": "xl/worksheets/sheet2.xml", "source": "xl/workbook.xml"},
+    {"name": "a missing comments part", "file": "missing-comments.xlsx", "options": {}, "part": "xl/comments1.xml", "source": "xl/worksheets/sheet1.xml"},
+    {"name": "a missing drawing part", "file": "missing-drawing.xlsx", "options": {}, "part": "xl/drawings/drawing1.xml", "source": "xl/worksheets/sheet1.xml"},
+    {"name": "a missing chart part", "file": "missing-chart.xlsx", "options": {}, "part": "xl/charts/chart1.xml", "source": "xl/drawings/drawing1.xml"},
+    {"name": "a missing styles part", "file": "missing-styles.xlsx", "options": {}, "part": "xl/styles.xml", "source": "xl/workbook.xml"},
+    {"name": "a missing shared strings part", "file": "missing-shared-strings.xlsx", "options": {}, "part": "xl/sharedStrings.xml", "source": "xl/workbook.xml"},
+    {"name": "a sheet whose relationship does not exist", "file": "dangling-sheet-rel.xlsx", "options": {}, "part": null, "source": "xl/workbook.xml"}
+  ]
+}

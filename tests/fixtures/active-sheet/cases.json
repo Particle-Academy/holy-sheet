@@ -11,14 +11,16 @@
     {"name": "a negative activeTab is the first sheet", "file": "active-negative.xlsx", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
     {"name": "whitespace around activeTab is collapsed", "file": "active-padded.xlsx", "options": {}, "activeSheet": {"index": 1, "name": "Second"}},
     {"name": "the first workbookView decides", "file": "two-book-views.xlsx", "options": {}, "activeSheet": {"index": 2, "name": "Third"}},
-    {"name": "an active sheet the reader skipped falls back to the first described", "file": "active-sheet-missing.xlsx", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
-    {"name": "the index counts the described sheets", "file": "earlier-sheet-missing.xlsx", "options": {}, "activeSheet": {"index": 1, "name": "Third"}},
     {"name": "a sheet option leaves activeSheet out", "file": "active-1.xlsx", "options": {"sheet": "Second"}, "activeSheet": null},
     {"name": "a sheet option leaves it out even for the active sheet's neighbour", "file": "active-1.xlsx", "options": {"sheet": "First"}, "activeSheet": null},
     {"name": "an ods reads the view's ActiveTable", "file": "active-third.ods", "options": {}, "activeSheet": {"index": 2, "name": "Third"}},
     {"name": "an ods without settings.xml is the first table", "file": "no-settings.ods", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
     {"name": "an ods ActiveTable naming no table is the first table", "file": "active-unknown.ods", "options": {}, "activeSheet": {"index": 0, "name": "First"}},
     {"name": "an ActiveTable outside the view is not the active table", "file": "no-active-table.ods", "options": {}, "activeSheet": {"index": 0, "name": "First"}}
+  ],
+  "readRaises": [
+    {"name": "a missing active sheet part raises rather than falling back", "file": "active-sheet-missing.xlsx", "options": {}, "part": "xl/worksheets/sheet2.xml"},
+    {"name": "a missing earlier sheet part raises rather than shifting the index", "file": "earlier-sheet-missing.xlsx", "options": {}, "part": "xl/worksheets/sheet1.xml"}
   ],
   "write": [
     {"name": "no activeSheet writes no bookViews", "schema": {"sheets": [{"name": "First", "cells": {"A1": 1}}, {"name": "Second", "cells": {"A1": 1}}, {"name": "Third", "cells": {"A1": 1}}]},

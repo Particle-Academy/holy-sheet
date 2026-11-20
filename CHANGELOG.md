@@ -4,6 +4,8 @@ All notable changes to `particle-academy/holy-sheet` will be documented in this 
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-11-19
+
 ### Added
 
 - **`read()` names the sheet the workbook opens on** (CC-fancy-0050): `activeSheet: {index, name}`, right after `sheets`, from the first `<workbookView activeTab>` (absent or not a non-negative integer: 0; past the last sheet: the last), or an `.ods` view's `ActiveTable`. The index counts the described sheets, so a sheet the reader skipped does not shift it. Left out when the `sheet` option narrows the read, which is not the whole workbook. Additive; a caller that ignores the key sees nothing change.

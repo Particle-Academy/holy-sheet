@@ -27,7 +27,7 @@ use HolySheet\Schema\DumpOptions;
  */
 final class HolySheet
 {
-    public const VERSION = '2.15.0';
+    public const VERSION = '2.15.1';
 
     /** @var array<string,int> */
     private readonly array $limits;
